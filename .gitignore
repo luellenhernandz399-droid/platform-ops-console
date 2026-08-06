@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+*.log
+
+# 本地预览工具配置，与工程无关
+.claude/

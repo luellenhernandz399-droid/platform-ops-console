@@ -1,0 +1,102 @@
+/* 平台运营后台设计令牌。
+   数值取自现有租户侧管理中心的设计系统文件
+   （Desktop/token hub/uploads/.../colors_and_type.css），原样搬入以保证两侧同一套视觉。
+   字体做了替换：PingFang SC 不可再分发，这里退到系统栈。 */
+
+:root {
+  /* 品牌青 */
+  --pc-teal-50: #e9ffff;
+  --pc-teal-100: #cffffe;
+  --pc-teal-200: #87fffc;
+  --pc-teal-300: #69fffb;
+  --pc-teal-400: #21ddb8;
+  --pc-teal-500: #00aeaa;
+  --pc-teal-600: #007f7c;
+  --pc-teal-700: #005a58;
+
+  /* 中性 */
+  --pc-white: #ffffff;
+  --pc-bg: #fafafa;
+  --pc-gray-50: #f3f3f3;
+  --pc-gray-100: #eaeaea;
+  --pc-gray-200: #d9d9de;
+  --pc-gray-300: #99a0ae;
+  --pc-gray-400: #818ea5;
+  --pc-gray-500: #6d6d6d;
+  --pc-gray-600: #474644;
+  --pc-gray-700: #2f2e2c;
+  --pc-gray-800: #1d1d20;
+  --pc-gray-900: #000000;
+
+  /* 强调色 */
+  --pc-pink-50: #ffefef;
+  --pc-pink-100: #ffe4e4;
+  --pc-pink-500: #f56c89;
+  --pc-blue-300: #5e81f4;
+  --pc-blue-500: #455cff;
+  --pc-blue-700: #1f46e0;
+
+  /* 状态色 —— 沿用品牌盘，未新增色相 */
+  --pc-warn-bg: #fff7e6;
+  --pc-warn-fg: #a86a00;
+  --pc-danger-bg: var(--pc-pink-50);
+  --pc-danger-fg: #c0344f;
+  --pc-ok-bg: var(--pc-teal-50);
+  --pc-ok-fg: var(--pc-teal-600);
+
+  /* 间距 */
+  --pc-space-1: 4px;
+  --pc-space-2: 8px;
+  --pc-space-3: 10px;
+  --pc-space-4: 12px;
+  --pc-space-5: 16px;
+  --pc-space-6: 20px;
+  --pc-space-8: 28px;
+  --pc-space-10: 40px;
+  --pc-space-12: 48px;
+
+  /* 圆角 */
+  --pc-radius-xs: 6px;
+  --pc-radius-sm: 8px;
+  --pc-radius-md: 12px;
+  --pc-radius-lg: 16px;
+  --pc-radius-pill: 34px;
+  --pc-radius-full: 9999px;
+
+  /* 描边与阴影 */
+  --pc-border-card: 1px solid var(--pc-gray-50);
+  --pc-shadow-nav: 0 2px 20px rgba(0, 0, 0, 0.03);
+  --pc-shadow-card: 0 2px 20px rgba(0, 0, 0, 0.03);
+  --pc-shadow-soft: 0 8px 24px rgba(152, 169, 188, 0.27);
+  --pc-shadow-key: 0 4px 12px rgba(0, 174, 170, 0.25);
+
+  /* 字体 */
+  --pc-font-cn: "Noto Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", sans-serif;
+  --pc-font-ui: "Inter", "Noto Sans SC", "PingFang SC", -apple-system, sans-serif;
+  --pc-font-brand: "Sora", "Inter", "Noto Sans SC", sans-serif;
+  --pc-font-mono: "DM Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --pc-text-xs: 12px;
+  --pc-text-sm: 13px;
+  --pc-text-base: 14px;
+  --pc-text-md: 16px;
+  --pc-text-lg: 20px;
+  --pc-text-xl: 24px;
+  --pc-text-2xl: 32px;
+
+  /* 语义令牌 */
+  --color-bg: var(--pc-bg);
+  --color-surface: var(--pc-white);
+  --color-sunken: var(--pc-gray-50);
+  --color-border: var(--pc-gray-50);
+  --color-divider: var(--pc-gray-100);
+  --color-fg: var(--pc-gray-900);
+  --color-fg-muted: var(--pc-gray-500);
+  --color-fg-subtle: var(--pc-gray-300);
+  --color-link: var(--pc-blue-500);
+  --color-accent: var(--pc-teal-500);
+  --color-accent-soft: var(--pc-teal-50);
+  --color-cta: var(--pc-teal-200);
+  --color-cta-fg: var(--pc-gray-900);
+}

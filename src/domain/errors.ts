@@ -1,0 +1,142 @@
+// 统一错误码。对应 Spec 第 16 章。
+
+export type ErrorCode =
+  // 通用
+  | 'VALIDATION_ERROR'
+  | 'PERMISSION_DENIED'
+  | 'REASON_REQUIRED'
+  | 'CONFIRM_NAME_MISMATCH'
+  | 'IDEMPOTENCY_CONFLICT'
+  | 'NOT_FOUND'
+  // 租户
+  | 'TENANT_NOT_FOUND'
+  | 'TENANT_NAME_DUPLICATE'
+  | 'TENANT_STATE_INVALID'
+  | 'TENANT_SUSPENDED'
+  | 'TENANT_DEREGISTERED'
+  // 席位
+  | 'SEAT_GRANT_NOT_FOUND'
+  | 'SEAT_INSUFFICIENT'
+  | 'SEAT_REDUCE_CONFLICT'
+  | 'SEAT_ALREADY_ASSIGNED'
+  | 'SEAT_ASSIGNMENT_NOT_FOUND'
+  | 'SEAT_ADMIN_PROTECTED'
+  | 'SEAT_RENEW_BACKWARDS'
+  // 额度
+  | 'QUOTA_GRANT_NOT_FOUND'
+  | 'QUOTA_AMOUNT_INVALID'
+  | 'QUOTA_INSUFFICIENT'
+  | 'QUOTA_REVOKE_EXCEEDS_REMAINING'
+  | 'QUOTA_GRANT_NOT_PENDING'
+  | 'QUOTA_ALLOCATION_EXCEEDS_BALANCE'
+  | 'QUOTA_TICKET_REQUIRED'
+  | 'QUOTA_PERIOD_CLOSED'
+  | 'RECHARGE_NOT_ALLOWED'
+  // 模型
+  | 'MODEL_NOT_FOUND'
+  | 'MODEL_NOT_PUBLISHED'
+  | 'MODEL_OFFLINE'
+  | 'MODEL_OFFLINE_NOTICE_TOO_SHORT'
+  | 'MODEL_GRANT_NOT_FOUND'
+  | 'MODEL_NOT_GRANTED'
+  | 'MODEL_GROUP_FOLLOWED'
+  | 'MODEL_DEFAULT_REQUIRED'
+  | 'MODEL_QUOTA_EXCEEDED'
+  | 'RATE_LIMITED'
+  | 'SELF_HOSTED_CHANNEL_DISABLED'
+  // 试用
+  | 'TRIAL_PLAN_NOT_FOUND'
+  | 'TRIAL_PLAN_DISABLED'
+  | 'TRIAL_NOT_ACTIVE'
+  | 'TRIAL_MAX_DURATION_EXCEEDED';
+
+const HTTP_STATUS: Record<ErrorCode, number> = {
+  VALIDATION_ERROR: 400,
+  PERMISSION_DENIED: 403,
+  REASON_REQUIRED: 400,
+  CONFIRM_NAME_MISMATCH: 400,
+  IDEMPOTENCY_CONFLICT: 409,
+  NOT_FOUND: 404,
+
+  TENANT_NOT_FOUND: 404,
+  TENANT_NAME_DUPLICATE: 409,
+  TENANT_STATE_INVALID: 409,
+  TENANT_SUSPENDED: 403,
+  TENANT_DEREGISTERED: 410,
+
+  SEAT_GRANT_NOT_FOUND: 404,
+  SEAT_INSUFFICIENT: 409,
+  SEAT_REDUCE_CONFLICT: 409,
+  SEAT_ALREADY_ASSIGNED: 409,
+  SEAT_ASSIGNMENT_NOT_FOUND: 404,
+  SEAT_ADMIN_PROTECTED: 409,
+  SEAT_RENEW_BACKWARDS: 400,
+
+  QUOTA_GRANT_NOT_FOUND: 404,
+  QUOTA_AMOUNT_INVALID: 400,
+  QUOTA_INSUFFICIENT: 409,
+  QUOTA_REVOKE_EXCEEDS_REMAINING: 409,
+  QUOTA_GRANT_NOT_PENDING: 409,
+  QUOTA_ALLOCATION_EXCEEDS_BALANCE: 409,
+  QUOTA_TICKET_REQUIRED: 400,
+  QUOTA_PERIOD_CLOSED: 409,
+  RECHARGE_NOT_ALLOWED: 403,
+
+  MODEL_NOT_FOUND: 404,
+  MODEL_NOT_PUBLISHED: 409,
+  MODEL_OFFLINE: 410,
+  MODEL_OFFLINE_NOTICE_TOO_SHORT: 400,
+  MODEL_GRANT_NOT_FOUND: 404,
+  MODEL_NOT_GRANTED: 403,
+  MODEL_GROUP_FOLLOWED: 409,
+  MODEL_DEFAULT_REQUIRED: 409,
+  MODEL_QUOTA_EXCEEDED: 429,
+  RATE_LIMITED: 429,
+  SELF_HOSTED_CHANNEL_DISABLED: 403,
+
+  TRIAL_PLAN_NOT_FOUND: 404,
+  TRIAL_PLAN_DISABLED: 409,
+  TRIAL_NOT_ACTIVE: 409,
+  TRIAL_MAX_DURATION_EXCEEDED: 409,
+};
+
+export class AppError extends Error {
+  code: ErrorCode;
+  httpStatus: number;
+  details: Record<string, unknown>;
+
+  constructor(
+    code: ErrorCode,
+    message: string,
+    details: Record<string, unknown> = {},
+  ) {
+    super(message);
+    this.name = 'AppError';
+    this.code = code;
+    this.httpStatus = HTTP_STATUS[code] ?? 500;
+    this.details = details;
+  }
+}
+
+export function fail(
+  code: ErrorCode,
+  message: string,
+  details: Record<string, unknown> = {},
+): never {
+  throw new AppError(code, message, details);
+}
+
+/** 危险操作的理由校验：≥10 字符（Spec 5.1） */
+export const MIN_REASON_LENGTH = 10;
+
+export function requireReason(reason: string | null | undefined, action: string): string {
+  const text = (reason ?? '').trim();
+  if (text.length < MIN_REASON_LENGTH) {
+    fail(
+      'REASON_REQUIRED',
+      `${action} 必须填写理由，且不少于 ${MIN_REASON_LENGTH} 个字符`,
+      { action, minLength: MIN_REASON_LENGTH, actualLength: text.length },
+    );
+  }
+  return text;
+}
