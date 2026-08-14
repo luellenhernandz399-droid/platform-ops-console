@@ -16,10 +16,11 @@ import {
 } from './helpers.ts';
 import { capabilitiesOf } from '../src/services/tenant.ts';
 import { hasPermission, PERMISSIONS, ROLE_PERMISSIONS } from '../src/domain/rbac.ts';
+import { BASIC_MODEL_GROUP } from '../src/services/quota.ts';
 
 describe('Spec 5.2 权限点与角色矩阵', () => {
-  it('权限点清单共 42 条且编码格式为 模块.资源.操作', () => {
-    assert.equal(PERMISSIONS.length, 42);
+  it('权限点清单共 45 条且编码格式为 模块.资源.操作', () => {
+    assert.equal(PERMISSIONS.length, 45);
     for (const p of PERMISSIONS) {
       assert.match(p, /^platform\.[a-z_]+\.[a-z_]+$/);
     }
@@ -149,6 +150,59 @@ describe('Spec 6.2 创建租户', () => {
     expectError(
       () => fx.app.createTenant(auditor, tenantCommand()),
       'PERMISSION_DENIED',
+    );
+  });
+});
+
+describe('Spec 6.2 待开通租户一次性开通正式（租户管理列表内联操作）', () => {
+  it('待开通租户可一次性开通：生成席位与额度授予单，首个管理员占用一席', () => {
+    const fx = setup();
+    const pending = fx.app.createTenant(superAdmin, tenantCommand());
+
+    const tenant = fx.app.activateTenant(superAdmin, pending.id, {
+      seatCount: 10,
+      purchasedCredit: 100_000,
+      modelGroups: [BASIC_MODEL_GROUP],
+      firstAdmin: { memberId: 'm_admin_1', name: '张三', email: 'admin1@example.com' },
+    });
+
+    assert.equal(tenant.status, 'active');
+    assert.equal(fx.app.seats.seatTotal(tenant.id), 10);
+    assert.equal(fx.app.seats.occupiedCount(tenant.id), 1);
+    assert.equal(fx.app.quota.balance(tenant.id).purchasedCredit, 100_000);
+    assert.equal(fx.app.models.activeGrants(tenant.id).length > 0, true);
+
+    const admin = fx.app.seats.assignments(tenant.id)[0];
+    assert.equal(admin.isAdmin, true);
+  });
+
+  it('非待开通状态调用报错', () => {
+    const fx = setup();
+    const tenant = activeTenant(fx);
+
+    expectError(
+      () =>
+        fx.app.activateTenant(superAdmin, tenant.id, {
+          seatCount: 10,
+          purchasedCredit: 100_000,
+          firstAdmin: { memberId: 'm_admin_2', name: '李四', email: 'admin2@example.com' },
+        }),
+      'VALIDATION_ERROR',
+    );
+  });
+
+  it('席位数为 0 时拒绝', () => {
+    const fx = setup();
+    const pending = fx.app.createTenant(superAdmin, tenantCommand());
+
+    expectError(
+      () =>
+        fx.app.activateTenant(superAdmin, pending.id, {
+          seatCount: 0,
+          purchasedCredit: 100_000,
+          firstAdmin: { memberId: 'm_admin_3', name: '王五', email: 'admin3@example.com' },
+        }),
+      'VALIDATION_ERROR',
     );
   });
 });

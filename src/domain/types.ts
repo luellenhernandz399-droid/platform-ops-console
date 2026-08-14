@@ -421,3 +421,108 @@ export const SYSTEM_ACTOR: Actor = {
   role: 'super_admin',
   source: 'system',
 };
+
+// ── 对公权益下单（PRD-对公支付权益下单）────────────────────────────────────
+
+export type CorpGrantType = 'seat_bonus' | 'seat_gift' | 'quota_package';
+export type CorpGrantOwner = 'individual' | 'shared_pool';
+
+// ── 商品目录（PRD-席位与额度包商品化）───────────────────────────────────────
+
+export type ProductCategory = 'seat' | 'package';
+export type ProductScope = 'tenant' | 'global';
+
+export interface Product {
+  id: string;
+  category: ProductCategory;
+  /** 本期恒为 'tenant' */
+  scope: ProductScope;
+  /** scope 为 'global' 时为 null，本期不产生 */
+  tenantId: string | null;
+  unitPriceFen: number;
+  /** 席位商品：每席位每月 credit；额度包商品：单个 credit 数量 */
+  creditAmount: number;
+  /** 备注名，可为空字符串，不参与去重 */
+  note: string;
+  active: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface CorpOrderSeatLine {
+  /** 所选商品 ID */
+  productId: string;
+  /** 下单时刻的商品备注名快照 */
+  productNote: string;
+  unitPriceFen: number;
+  monthlyCredit: number;
+  seatCount: number;
+  effectiveAt: string;
+  termMonths: number;
+  /** 派生：effectiveAt + termMonths 自然月，月末顺延 */
+  expireAt: string;
+  /** 赠送共享池化系数 0-100，0 表示不赠送 */
+  poolPercent: number;
+  /** unitPriceFen * seatCount * termMonths */
+  lineAmountFen: number;
+  /** 该行对应的席位授予单，落库后回填 */
+  seatGrantId: string;
+}
+
+export interface CorpOrderQuotaPackageLine {
+  /** 所选商品 ID */
+  productId: string;
+  /** 下单时刻的商品备注名快照 */
+  productNote: string;
+  count: number;
+  unitPriceFen: number;
+  creditAmount: number;
+  effectiveAt: string;
+  /** 默认 6，可改 */
+  termMonths: number;
+  expireAt: string;
+  /** unitPriceFen * count */
+  lineAmountFen: number;
+  /** 对应的额度授予单，落库后回填 */
+  quotaGrantId: string;
+}
+
+export interface CorpOrderGrantDetail {
+  id: string;
+  orderId: string;
+  tenantId: string;
+  grantType: CorpGrantType;
+  owner: CorpGrantOwner;
+  /** 对应 seatLines 下标，额度包为 -1 */
+  sourceLineIndex: number;
+  /** 快照展示用，如「专业版席位第 1 行」「额度包」 */
+  sourceLineLabel: string;
+  creditAmount: number;
+  effectiveAt: string;
+  expireAt: string;
+  linkedSeatGrantId: string | null;
+  /** 个人席位附带额度无实时账本对应，恒为 null */
+  linkedQuotaGrantId: string | null;
+}
+
+export interface CorpOrder {
+  id: string;
+  /** CO-YYMM-NNN */
+  orderNo: string;
+  tenantId: string;
+  salesActorId: string;
+  createdAt: string;
+  voucherFileName: string;
+  voucherMime: string;
+  /** 本期直接落库，生产化前需换对象存储 */
+  voucherDataBase64: string;
+  voucherUploadedBy: string;
+  voucherUploadedAt: string;
+  seatLines: CorpOrderSeatLine[];
+  quotaPackages: CorpOrderQuotaPackageLine[];
+  totalAmountFen: number;
+  totalCreditIssued: number;
+  grantDetailCount: number;
+}

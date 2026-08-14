@@ -11,6 +11,8 @@ import type { SeatService } from './seat.ts';
 import type { QuotaService } from './quota.ts';
 import type { AuditService } from './audit.ts';
 import type { QueryService, TenantListFilter } from './query.ts';
+import type { CorpOrderService } from './corpOrder.ts';
+import type { CorpGrantType } from '../domain/types.ts';
 
 /** 单次导出上限（Spec 11.4） */
 export const EXPORT_ROW_LIMIT = 100_000;
@@ -21,7 +23,14 @@ export interface ExportResult {
   csv: string;
 }
 
-export type ExportKind = 'tenants' | 'seat-assignments' | 'quota-ledger' | 'audit-logs';
+export type ExportKind =
+  | 'tenants'
+  | 'seat-assignments'
+  | 'quota-ledger'
+  | 'audit-logs'
+  | 'corp_order_records'
+  | 'corp_grant_details'
+  | 'corp_order_detail';
 
 export class ExportService {
   private ctx: Ctx;
@@ -29,6 +38,7 @@ export class ExportService {
   private quota: QuotaService;
   private audit: AuditService;
   private query: QueryService;
+  private corpOrders: CorpOrderService;
 
   constructor(
     ctx: Ctx,
@@ -36,18 +46,20 @@ export class ExportService {
     quota: QuotaService,
     audit: AuditService,
     query: QueryService,
+    corpOrders: CorpOrderService,
   ) {
     this.ctx = ctx;
     this.seats = seats;
     this.quota = quota;
     this.audit = audit;
     this.query = query;
+    this.corpOrders = corpOrders;
   }
 
   run(
     actor: Actor,
     kind: ExportKind,
-    options: { tenantId?: string; filter?: TenantListFilter } = {},
+    options: { tenantId?: string; orderId?: string; filter?: TenantListFilter } = {},
   ): ExportResult {
     switch (kind) {
       case 'tenants':
@@ -58,6 +70,12 @@ export class ExportService {
         return this.quotaLedger(actor, this.mustTenant(options.tenantId));
       case 'audit-logs':
         return this.auditLogs(actor, options.tenantId ?? null);
+      case 'corp_order_records':
+        return this.corpOrderRecords(actor, this.mustTenant(options.tenantId));
+      case 'corp_grant_details':
+        return this.corpGrantDetails(actor, this.mustTenant(options.tenantId));
+      case 'corp_order_detail':
+        return this.corpOrderDetail(actor, this.mustOrderId(options.orderId));
       default:
         fail('VALIDATION_ERROR', `不支持的导出类型 ${String(kind)}`, { kind });
     }
@@ -67,6 +85,11 @@ export class ExportService {
     if (!tenantId) fail('VALIDATION_ERROR', '该导出需要指定租户', {});
     getTenant(this.ctx, tenantId);
     return tenantId;
+  }
+
+  private mustOrderId(orderId: string | undefined): string {
+    if (!orderId) fail('VALIDATION_ERROR', '该导出需要指定订单', {});
+    return orderId;
   }
 
   private tenants(actor: Actor, filter: TenantListFilter): ExportResult {
@@ -109,6 +132,73 @@ export class ExportService {
         l.at, l.actorId, l.actorRole, l.tenantId ?? '', l.objectType, l.objectId ?? '',
         l.action, l.summary, l.source, l.status, l.reason ?? '',
       ]));
+  }
+
+  private corpOrderRecords(actor: Actor, tenantId: string): ExportResult {
+    requirePermission(actor, 'platform.corp_order.export');
+    const rows = this.corpOrders.listOrders(tenantId);
+    return build('对公权益订单记录', ['订单号', '创建时间', '销售', '席位行数', '是否含额度包', '订单金额(元)', '发放credit', '生效状态'],
+      rows.map((o) => [
+        o.orderNo, o.createdAt, o.salesActorId, o.seatLines.length,
+        o.quotaPackages.length > 0 ? '是' : '否', (o.totalAmountFen / 100).toFixed(2),
+        o.totalCreditIssued, lifecycleLabel(o.lifecycleStatus),
+      ]));
+  }
+
+  private corpGrantDetails(actor: Actor, tenantId: string): ExportResult {
+    requirePermission(actor, 'platform.corp_order.export');
+    const rows = this.corpOrders.grantDetails(tenantId);
+    return build('对公权益额度下发明细', ['订单', '发放类型', '归属', '来源行', 'credit数量', '生效时间', '到期时间', '关联席位单', '关联额度单'],
+      rows.map((d) => [
+        d.orderId, grantTypeLabel(d.grantType), d.owner === 'individual' ? '个人' : '共享池',
+        d.sourceLineLabel, d.creditAmount, d.effectiveAt, d.expireAt,
+        d.linkedSeatGrantId ?? '', d.linkedQuotaGrantId ?? '',
+      ]));
+  }
+
+  private corpOrderDetail(actor: Actor, orderId: string): ExportResult {
+    requirePermission(actor, 'platform.corp_order.export');
+    const order = this.corpOrders.orderDetail(orderId);
+    const rows: (string | number)[][] = order.seatLines.map((l, i) => [
+      `席位第${i + 1}行`, l.name, l.unitPriceFen, l.monthlyCredit,
+      l.seatCount, l.effectiveAt, l.expireAt, `${l.poolPercent}%`,
+      (l.lineAmountFen / 100).toFixed(2),
+    ]);
+    order.quotaPackages.forEach((p, i) => {
+      rows.push([
+        `额度包第${i + 1}行`, p.name, p.unitPriceFen, p.creditAmount,
+        p.count, p.effectiveAt, p.expireAt, '', (p.lineAmountFen / 100).toFixed(2),
+      ]);
+    });
+    return build(
+      `对公权益订单-${order.orderNo}`,
+      ['行类型', '名称', '单价(分)', '月额度/credit数量', '席位数/个数', '生效时间', '到期时间', '池化系数', '行金额(元)'],
+      rows,
+    );
+  }
+}
+
+function grantTypeLabel(type: CorpGrantType): string {
+  switch (type) {
+    case 'seat_bonus':
+      return '席位附带额度';
+    case 'seat_gift':
+      return '赠送池化额度';
+    case 'quota_package':
+      return '额度包';
+  }
+}
+
+function lifecycleLabel(status: 'not_started' | 'active' | 'expiring_soon' | 'expired'): string {
+  switch (status) {
+    case 'not_started':
+      return '未开始';
+    case 'active':
+      return '生效中';
+    case 'expiring_soon':
+      return '即将到期';
+    case 'expired':
+      return '已过期';
   }
 }
 

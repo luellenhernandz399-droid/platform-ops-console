@@ -1,11 +1,12 @@
 // 控制台主壳：侧边栏、路由、看板、租户列表、模型目录、试用套餐、审计、每日任务。
 
 import {
-  actor, api, badge, day, downloadCsv, dt, esc, EXHAUST_POLICY, LEVEL, MODEL_GROUPS,
-  MODEL_STATUS, meter, openForm, pct, ROLES, setRole, statusBadge, STATUS, toast,
-  toastError, usd, VENDOR, currentPath, go,
+  actor, api, badge, confirmName, day, downloadCsv, dt, esc, EXHAUST_POLICY, LEVEL,
+  MODEL_GROUPS, MODEL_STATUS, meter, openForm, pct, reasonField, ROLES, setRole,
+  statusBadge, STATUS, toast, toastError, usd, VENDOR, currentPath, go,
 } from './core.js';
 import { renderTenantDetail } from './detail.js';
+import { renderCorpOrder } from './corpOrder.js';
 
 const NAV = [
   { key: 'dashboard', label: '运营看板' },
@@ -23,6 +24,9 @@ const RISK_VIEWS = [
   ['inactive', '长期不活跃'],
   ['trial_expiring', '试用即将到期'],
 ];
+
+/** 租户管理列表的状态筛选口径：不单独给试用中开筛选项，见改造说明 */
+const LIST_STATUS_ORDER = ['pending', 'active', 'suspended', 'deregistering', 'deregistered'];
 
 const app = document.getElementById('root');
 
@@ -209,8 +213,8 @@ async function viewTenants(params) {
             <input id="f-keyword" placeholder="搜索名称、编码或联系人" value="${esc(filters.keyword)}" />
             <select id="f-status">
               <option value="">全部状态</option>
-              ${Object.entries(STATUS).map(([v, s]) =>
-                `<option value="${v}" ${filters.status === v ? 'selected' : ''}>${s.label}</option>`).join('')}
+              ${LIST_STATUS_ORDER.map((v) =>
+                `<option value="${v}" ${filters.status === v ? 'selected' : ''}>${STATUS[v].label}</option>`).join('')}
             </select>
             <select id="f-level">
               <option value="">全部等级</option>
@@ -283,8 +287,15 @@ async function viewTenants(params) {
         rows = await api('GET', `/tenants?${q}`);
       }
       box.innerHTML = renderTenantTable(rows);
-      box.querySelectorAll('[data-id]').forEach((n) =>
+      box.querySelectorAll('tr[data-id]').forEach((n) =>
         n.addEventListener('click', () => go(`tenants/${n.dataset.id}/basic`)));
+      box.querySelectorAll('[data-row-act]').forEach((n) =>
+        n.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const row = rows.find((r) => r.tenantId === n.dataset.id);
+          if (!row) return;
+          ROW_ACTIONS[n.dataset.rowAct]?.(row, refresh);
+        }));
     } catch (error) {
       toastError(error);
       box.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
@@ -297,30 +308,193 @@ async function viewTenants(params) {
 function renderTenantTable(rows) {
   if (!rows.length) return '<div class="empty">没有匹配的租户</div>';
   return `<table><thead><tr>
-    <th>租户</th><th>状态</th><th>等级</th><th>席位</th><th>占用率</th>
-    <th class="num">可用额度</th><th class="num">本月消耗</th><th class="num">模型</th>
-    <th>到期</th><th>归属销售</th><th>最后活跃</th>
+    <th>租户</th><th>状态</th><th>席位</th><th>占用率</th><th>消耗</th>
+    <th class="num">模型</th><th>归属销售</th><th>最后活跃</th><th>操作</th>
   </tr></thead><tbody>
     ${rows.map((r) => {
       const live = ['pending', 'trialing', 'active', 'suspended'].includes(r.status);
-      const expDays = r.expireAt ? Math.ceil((new Date(r.expireAt) - Date.now()) / 86400000) : null;
       return `<tr class="row-link" data-id="${r.tenantId}">
         <td><div>${esc(r.name)}</div><div class="dual-sub">${esc(r.code)}</div></td>
-        <td>${statusBadge(r)}</td>
-        <td>${r.level ? LEVEL[r.level] : '—'}</td>
+        <td>${statusBadge(r)}${r.status === 'deregistering' ? `<div class="dual-sub">注销发起：${day(r.deregisterAt)}</div>` : ''}</td>
         <td>${r.seatOccupied} / ${r.seatTotal}${live && r.oversold ? ' ' + badge('超卖', 'danger') : ''}</td>
         <td>${meter(r.occupancyRate, live && r.oversold)}<div class="dual-sub">${pct(r.occupancyRate)}</div></td>
-        <td class="num"><div class="dual-main">${r.availableUsd.startsWith('-') ? '-$' + r.availableUsd.slice(1) : '$' + r.availableUsd}</div>
-          <div class="dual-sub">${Number(r.availableCredit).toLocaleString()} credit</div></td>
-        <td class="num">${usd(r.monthConsumeCredit)}</td>
+        <td>${meter(r.consumeRate)}<div class="dual-sub">${Number(r.monthConsumeCredit).toLocaleString('en-US')} / ${Number(r.grantedCredit).toLocaleString('en-US')} credit</div></td>
         <td class="num">${r.grantedModelCount}</td>
-        <td>${r.expireAt ? `${day(r.expireAt)}${expDays !== null && expDays <= 30 ? ' ' + badge(`${expDays} 天`, 'warn') : ''}` : '—'}</td>
         <td>${esc(r.ownerSalesId ?? '—')}</td>
         <td>${r.lastActiveAt ? day(r.lastActiveAt) : badge('从未活跃', 'mute')}</td>
+        <td>${tenantRowActions(r)}</td>
       </tr>`;
     }).join('')}
   </tbody></table>`;
 }
+
+/** 状态 → 行内操作按钮映射，对齐 detail.js headerActions() 的口径 */
+function tenantRowActions(r) {
+  const b = (act, label, cls = 'btn-link') =>
+    `<button class="${cls}" data-row-act="${act}" data-id="${r.tenantId}">${label}</button>`;
+  const out = [];
+  if (r.status === 'pending') out.push(b('activate', '转正式'));
+  if (r.status === 'trialing') {
+    out.push(b('convert', '转正式'));
+    out.push(b('suspend', '冻结'));
+    out.push(b('deregister', '注销', 'btn-link danger'));
+  }
+  if (r.status === 'active') {
+    out.push(b('suspend', '冻结'));
+    out.push(b('deregister', '注销', 'btn-link danger'));
+  }
+  if (r.status === 'suspended' && r.suspendReason === 'trial_expired') {
+    out.push(b('convert', '转正式'));
+    out.push(b('deregister', '注销', 'btn-link danger'));
+  }
+  if (r.status === 'suspended' && r.suspendReason !== 'trial_expired') {
+    out.push(b('resume', '恢复'));
+    out.push(b('deregister', '注销', 'btn-link danger'));
+  }
+  if (r.status === 'deregistering') out.push(b('restore', '撤销注销'));
+  return out.length ? `<div class="cell-actions">${out.join('')}</div>` : '—';
+}
+
+const ROW_ACTIONS = {
+  activate: (row, refresh) => openActivateTenantForm(row, refresh),
+  convert: (row, refresh) => openConvertForm(row, refresh),
+  suspend: (row, refresh) => openSuspendForm(row, refresh),
+  resume: (row, refresh) => resumeTenant(row, refresh),
+  deregister: (row, refresh) => openDeregisterForm(row, refresh),
+  restore: (row, refresh) => restoreTenant(row, refresh),
+};
+
+/** 待开通租户一次性开通正式，对齐 openCreateTenant() 的「直接开通正式」资源下发 */
+function openActivateTenantForm(row, refresh) {
+  openForm({
+    title: `一次性开通正式 · ${row.name}`,
+    desc: '一次性完成席位授予、额度充值、模型分组授权，并设置首个租户管理员。',
+    wide: true,
+    fields: [
+      { name: 'seatCount', label: '初始席位数', type: 'number', min: 1, value: 20, required: true,
+        help: '为 0 时会被拒绝，首个管理员需要占一个席位。' },
+      { name: 'purchasedCredit', label: '初始购买额度（美元）', type: 'usd', min: 0, value: 5000 },
+      { name: 'modelGroups', label: '模型分组授权', type: 'multiselect', value: ['基础模型集'],
+        options: MODEL_GROUPS.map((g) => ({ value: g, label: g })) },
+      { name: 'adminId', label: '首个管理员标识', type: 'text', required: true, placeholder: 'm_xxx_admin' },
+      { name: 'adminName', label: '管理员姓名', type: 'text', required: true },
+      { name: 'adminEmail', label: '管理员邮箱', type: 'text', required: true },
+    ],
+    submitLabel: '确认开通',
+    onSubmit: async (v) => {
+      await api('POST', `/tenants/${row.tenantId}/activate`, {
+        seatCount: v.seatCount,
+        purchasedCredit: v.purchasedCredit,
+        modelGroups: v.modelGroups,
+        firstAdmin: { memberId: v.adminId, name: v.adminName, email: v.adminEmail },
+      });
+      toast(`${row.name} 已开通正式`);
+      refresh();
+    },
+  });
+}
+
+/** 试用中 / 试用到期暂停 转正式，复用既有 /trial/convert */
+function openConvertForm(row, refresh) {
+  openForm({
+    title: `转为正式 · ${row.name}`,
+    desc: '试用席位保留至原到期时间并与正式席位叠加，转换瞬间不掉席位；试用剩余赠送额度转正式后立即作废。',
+    wide: true,
+    fields: [
+      { name: 'seatCount', label: '正式席位数', type: 'number', min: 1, value: 50, required: true },
+      { name: 'purchasedCredit', label: '正式购买额度（美元）', type: 'usd', min: 0, value: 5000, required: true },
+      { name: 'contractNo', label: '合同编号', type: 'text' },
+      { name: 'contractEndAt', label: '合同到期', type: 'date' },
+    ],
+    submitLabel: '确认转正式',
+    onSubmit: async (v) => {
+      await api('POST', `/tenants/${row.tenantId}/trial/convert`, {
+        seatCount: v.seatCount,
+        purchasedCredit: v.purchasedCredit,
+        contractNo: v.contractNo || null,
+        contractEndAt: v.contractEndAt ? new Date(v.contractEndAt).toISOString() : null,
+      });
+      toast(`${row.name} 已转为正式租户`);
+      refresh();
+    },
+  });
+}
+
+function openSuspendForm(row, refresh) {
+  openForm({
+    title: `停用租户 · ${row.name}`,
+    desc: '停用后成员仍可登录，但所有模型调用会被拒绝，租户侧管理中心转为只读。',
+    danger: true,
+    fields: [
+      { name: 'reasonCode', label: '停用原因', type: 'select', value: 'manual',
+        options: [{ value: 'manual', label: '人工冻结' }, { value: 'violation', label: '违规' }] },
+      reasonField('停用理由'),
+    ],
+    submitLabel: '确认停用',
+    onSubmit: async (v) => {
+      await api('POST', `/tenants/${row.tenantId}/suspend`, v);
+      toast(`${row.name} 已停用`);
+      refresh();
+    },
+  });
+}
+
+async function resumeTenant(row, refresh) {
+  try {
+    await api('POST', `/tenants/${row.tenantId}/resume`, {});
+    toast(`${row.name} 已恢复`);
+    refresh();
+  } catch (error) {
+    toastError(error);
+  }
+}
+
+/** 影响范围数字不在列表行数据里，需要先取一次详情 */
+async function openDeregisterForm(row, refresh) {
+  let d;
+  try {
+    d = await api('GET', `/tenants/${row.tenantId}`);
+  } catch (error) {
+    toastError(error);
+    return;
+  }
+  const t = d.tenant;
+  openForm({
+    title: '发起注销',
+    desc: `进入 ${t.retentionDays} 天保留期：成员会话立即失效、席位授予单回收、额度冻结、模型授权撤销。保留期内可撤销。`,
+    danger: true,
+    fields: [
+      { name: 'impact', label: '影响范围', type: 'static',
+        value: `<div class="notice danger">
+          成员 ${d.seat.assignments.filter((a) => !a.releasedAt).length} 人 ·
+          占用席位 ${d.seat.overview.occupied} 个 ·
+          未消耗购买额度 ${usd(d.quota.balance.purchasedCredit)} ·
+          未消耗赠送额度 ${usd(d.quota.balance.giftCredit)} ·
+          已授权模型 ${d.model.grants.length} 个
+        </div>` },
+      confirmName(t.name),
+      reasonField('注销理由'),
+    ],
+    submitLabel: '确认注销',
+    onSubmit: async (v) => {
+      await api('POST', `/tenants/${t.id}/deregister`, { confirmName: v.confirmName, reason: v.reason });
+      toast('已进入注销保留期');
+      refresh();
+    },
+  });
+}
+
+async function restoreTenant(row, refresh) {
+  try {
+    await api('POST', `/tenants/${row.tenantId}/restore`, {});
+    toast(`${row.name} 已撤销注销`);
+    refresh();
+  } catch (error) {
+    toastError(error);
+  }
+}
+
+
 
 async function openCreateTenant() {
   const plans = await api('GET', '/trial-plans');
@@ -668,6 +842,11 @@ function route() {
 
   const page = parts[0] || 'dashboard';
   try {
+    if (page === 'tenants' && parts[1] && parts[2] === 'corp-order') {
+      const view = mount('tenants', '对公权益下单');
+      renderCorpOrder(view, parts[1], parts[3] || 'create', parts[4] || null);
+      return;
+    }
     if (page === 'tenants' && parts[1]) {
       const view = mount('tenants', '租户详情');
       renderTenantDetail(view, parts[1], parts[2] || 'basic');

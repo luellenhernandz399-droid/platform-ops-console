@@ -48,7 +48,12 @@ export type ErrorCode =
   | 'TRIAL_PLAN_NOT_FOUND'
   | 'TRIAL_PLAN_DISABLED'
   | 'TRIAL_NOT_ACTIVE'
-  | 'TRIAL_MAX_DURATION_EXCEEDED';
+  | 'TRIAL_MAX_DURATION_EXCEEDED'
+  // 对公权益下单
+  | 'CORP_ORDER_NOT_FOUND'
+  // 商品目录
+  | 'PRODUCT_NOT_FOUND'
+  | 'PRODUCT_INACTIVE';
 
 const HTTP_STATUS: Record<ErrorCode, number> = {
   VALIDATION_ERROR: 400,
@@ -98,6 +103,11 @@ const HTTP_STATUS: Record<ErrorCode, number> = {
   TRIAL_PLAN_DISABLED: 409,
   TRIAL_NOT_ACTIVE: 409,
   TRIAL_MAX_DURATION_EXCEEDED: 409,
+
+  CORP_ORDER_NOT_FOUND: 404,
+
+  PRODUCT_NOT_FOUND: 404,
+  PRODUCT_INACTIVE: 400,
 };
 
 export class AppError extends Error {

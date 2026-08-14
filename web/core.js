@@ -143,6 +143,21 @@ export const VENDOR = {
   self_hosted: '自建',
 };
 
+export const CORP_GRANT_TYPE = {
+  seat_bonus: '席位附带额度',
+  seat_gift: '赠送池化额度',
+  quota_package: '额度包',
+};
+
+export const CORP_ORDER_LIFECYCLE = {
+  not_started: { label: '未开始', tone: 'mute' },
+  active: { label: '生效中', tone: 'ok' },
+  expiring_soon: { label: '即将到期', tone: 'warn' },
+  expired: { label: '已过期', tone: 'mute' },
+};
+
+export const CORP_GRANT_OWNER = { individual: '个人', shared_pool: '共享池' };
+
 export const RELEASE_REASON = {
   member_deleted: '成员删除',
   member_resigned: '离职同步',
@@ -179,6 +194,14 @@ export function usd(credit) {
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
   return `${sign}$${Math.floor(abs / 100).toLocaleString('en-US')}.${String(abs % 100).padStart(2, '0')}`;
+}
+
+/** fen 整数转人民币展示串，1 元 = 100 分，用于对公权益下单模块 */
+export function cny(fen) {
+  const n = Number(fen ?? 0);
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  return `${sign}¥${Math.floor(abs / 100).toLocaleString('zh-CN')}.${String(abs % 100).padStart(2, '0')}`;
 }
 
 export function creditText(credit) {

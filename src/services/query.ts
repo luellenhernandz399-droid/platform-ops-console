@@ -46,8 +46,10 @@ export interface TenantListRow {
   availableUsd: string;
   monthConsumeCredit: number;
   consumeRate: number;
+  grantedCredit: number;
   grantedModelCount: number;
   expireAt: string | null;
+  deregisterAt: string | null;
   ownerSalesId: string | null;
   lastActiveAt: string | null;
 }
@@ -125,8 +127,10 @@ export class QueryService {
       availableUsd: creditToUsd(balance.availableCredit),
       monthConsumeCredit: monthConsume,
       consumeRate: granted === 0 ? 0 : monthConsume / granted,
+      grantedCredit: granted,
       grantedModelCount: this.models.activeGrants(tenant.id).length,
       expireAt: tenant.trialExpireAt ?? tenant.contractEndAt,
+      deregisterAt: tenant.deregisterAt,
       ownerSalesId: tenant.ownerSalesId,
       lastActiveAt: lastActive,
     };

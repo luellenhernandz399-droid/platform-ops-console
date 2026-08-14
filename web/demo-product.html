@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>Demo · 商品先建后选</title>
+<link rel="stylesheet" href="./tokens.css" />
+<link rel="stylesheet" href="./app.css" />
+<style>
+  body { background: var(--color-bg); font-family: var(--pc-font-cn); color: var(--color-fg); margin: 0; }
+  .demo-switch { display: flex; align-items: center; gap: var(--pc-space-3); }
+  .demo-switch select { padding: 5px var(--pc-space-4); border: 1px solid var(--color-divider); border-radius: var(--pc-radius-xs); font-size: var(--pc-text-sm); background: var(--color-surface); }
+
+  /* ── 商品选择器：向上展开，新建沉底 ───────────── */
+  .pk { position: relative; width: 230px; }
+  .pk-btn {
+    width: 100%; text-align: left; cursor: pointer; background: var(--color-surface);
+    border: 1px solid var(--color-divider); border-radius: var(--pc-radius-xs);
+    padding: 5px 22px 6px var(--pc-space-3); font-size: var(--pc-text-sm);
+    font-family: inherit; color: var(--color-fg); box-sizing: border-box; min-height: 32px; line-height: 1.5;
+  }
+  .pk-btn.empty { color: var(--color-fg-subtle); }
+  .pk-btn:hover { border-color: var(--pc-teal-400); }
+  .pk.open .pk-btn { border-color: var(--pc-teal-400); box-shadow: 0 0 0 2px var(--pc-teal-50); }
+  .pk-btn .spec { display: block; font-family: var(--pc-font-mono); font-size: 11px; color: var(--color-fg-muted); margin-top: 1px; }
+  .pk-caret { position: absolute; right: 7px; top: 13px; font-size: 9px; color: var(--color-fg-subtle); pointer-events: none; }
+  .pk-pop {
+    position: absolute; z-index: 40; bottom: calc(100% + 4px); top: auto; left: 0; width: 380px;
+    background: var(--color-surface); border: 1px solid var(--color-divider);
+    border-radius: var(--pc-radius-sm); box-shadow: var(--pc-shadow-soft);
+    max-height: 320px; overflow-y: auto;
+  }
+  .pk-group { padding: var(--pc-space-3) var(--pc-space-4) var(--pc-space-1); font-size: 11px; color: var(--color-fg-subtle); }
+  .pk-item { display: flex; align-items: center; gap: var(--pc-space-3); padding: var(--pc-space-3) var(--pc-space-4); cursor: pointer; }
+  .pk-item:hover { background: var(--pc-teal-50); }
+  .pk-item-main { min-width: 0; flex: 1; }
+  .pk-item-name { font-size: var(--pc-text-sm); }
+  .pk-item-name .muted { color: var(--color-fg-subtle); }
+  .pk-item-meta { font-size: var(--pc-text-xs); color: var(--color-fg-muted); font-family: var(--pc-font-mono); margin-top: 2px; }
+  .pk-item-use { font-size: 11px; color: var(--color-fg-subtle); white-space: nowrap; text-align: right; line-height: 1.5; }
+  .pk-item-off { font-size: 11px; color: var(--color-fg-subtle); white-space: nowrap; border: none; background: none; cursor: pointer; padding: 2px 4px; }
+  .pk-item-off:hover { color: var(--pc-danger-fg); text-decoration: underline; }
+  .pk-item.disabled { opacity: .65; }
+  .pk-item.disabled .pk-item-name { text-decoration: line-through; }
+  .pk-new {
+    position: sticky; bottom: 0; background: var(--color-surface);
+    border-top: 1px solid var(--color-divider);
+  }
+  .pk-new .pk-item-name { color: var(--pc-teal-600); font-weight: 500; }
+  .pk-empty { padding: var(--pc-space-6) var(--pc-space-4); text-align: center; font-size: var(--pc-text-xs); color: var(--color-fg-subtle); line-height: 1.9; }
+  .pk-foot { padding: var(--pc-space-2) var(--pc-space-4); font-size: 11px; color: var(--color-fg-subtle); display: flex; justify-content: space-between; align-items: center; }
+  .pk-foot button { border: none; background: none; color: var(--color-link); font-size: 11px; cursor: pointer; padding: 0; }
+
+  .locked { font-family: var(--pc-font-mono); font-size: var(--pc-text-sm); }
+  .locked.blank { color: var(--color-fg-subtle); font-family: inherit; font-size: var(--pc-text-xs); }
+
+  thead tr.grp th { border-bottom: none; padding-bottom: 0; color: var(--color-fg-subtle); font-size: 11px; }
+  tbody td.g, thead th.g { border-left: 1px solid var(--color-divider); }
+
+  td input[type=number], td input[type=date] {
+    padding: 5px var(--pc-space-3); border: 1px solid var(--color-divider);
+    border-radius: var(--pc-radius-xs); font-size: var(--pc-text-sm); font-family: inherit; box-sizing: border-box;
+  }
+  td input:focus { outline: none; border-color: var(--pc-teal-400); }
+  td { vertical-align: middle; }
+  table { border-collapse: collapse; }
+  thead th { text-align: left; font-size: var(--pc-text-xs); color: var(--color-fg-muted); font-weight: 400; padding: var(--pc-space-3) var(--pc-space-4); border-bottom: 1px solid var(--color-divider); white-space: nowrap; }
+  tbody td { padding: var(--pc-space-3) var(--pc-space-4); border-bottom: 1px solid var(--color-border); font-size: var(--pc-text-sm); }
+  th.num, td.num { text-align: right; }
+  .mono { font-family: var(--pc-font-mono); font-size: var(--pc-text-xs); color: var(--color-fg-muted); }
+
+  .diff-list { display: flex; flex-direction: column; gap: var(--pc-space-3); }
+  .diff-item { display: flex; gap: var(--pc-space-3); align-items: baseline; font-size: var(--pc-text-sm); }
+  .toast {
+    position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);
+    background: var(--pc-gray-800); color: #fff; padding: 10px 18px;
+    border-radius: var(--pc-radius-pill); font-size: var(--pc-text-sm); z-index: 200;
+    box-shadow: var(--pc-shadow-soft); max-width: 70vw;
+  }
+  .warn-box { background: var(--pc-warn-bg); color: var(--pc-warn-fg); padding: var(--pc-space-3) var(--pc-space-4); border-radius: var(--pc-radius-xs); font-size: var(--pc-text-xs); line-height: 1.7; }
+  .ok-box { background: var(--pc-ok-bg); color: var(--pc-ok-fg); padding: var(--pc-space-3) var(--pc-space-4); border-radius: var(--pc-radius-xs); font-size: var(--pc-text-xs); line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <div class="tenant-head"><span class="tenant-name" id="t-name">—</span><span class="badge ok">正常</span></div>
+      <div class="page-desc"><span class="tenant-code" id="t-code">—</span> · 对公权益支付下发 · 创建订单</div>
+    </div>
+    <div class="page-actions demo-switch">
+      <span style="font-size:var(--pc-text-xs);color:var(--color-fg-muted)">演示切换客户</span>
+      <select id="t-switch">
+        <option value="T-1001">客户 A · 云启科技（已有商品）</option>
+        <option value="T-1002">客户 B · 新签客户（目录为空）</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 席位 -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">席位权益明细</div>
+      <div class="card-actions"><button class="btn btn-sm" id="add-seat">+ 新增一行</button></div>
+    </div>
+    <div class="card-body flush table-wrap">
+      <table>
+        <thead>
+          <tr class="grp">
+            <th colspan="3">商品</th>
+            <th colspan="3" class="g">本单用量</th>
+            <th colspan="3" class="g">周期</th>
+            <th class="g"></th><th></th>
+          </tr>
+          <tr>
+            <th style="width:250px">商品</th><th class="num">单价(元/席位·月)</th><th class="num">月额度(credit)</th>
+            <th class="num g">席位数</th><th class="num">池化额度(%)</th><th class="num">可赠送(credit/月)</th>
+            <th class="g">生效日期</th><th class="num">有效期(月)</th><th>到期日</th>
+            <th class="num g">金额</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="seat-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 额度包 -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">额度包</div>
+      <div class="card-actions"><button class="btn btn-sm" id="add-pkg">+ 新增一行</button></div>
+    </div>
+    <div class="card-body flush table-wrap">
+      <table>
+        <thead>
+          <tr class="grp">
+            <th colspan="3">商品</th>
+            <th class="g">本单用量</th>
+            <th colspan="3" class="g">周期</th>
+            <th class="g"></th><th></th>
+          </tr>
+          <tr>
+            <th style="width:250px">商品</th><th class="num">单价(元/个)</th><th class="num">单个额度(credit)</th>
+            <th class="num g">个数</th>
+            <th class="g">生效日期</th><th class="num">有效期(月)</th><th>到期日</th>
+            <th class="num g">金额</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="pkg-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="corp-summary-bar">
+    <div class="corp-summary-bar-fields">
+      <div><div class="field-label">本单总金额</div><div class="stat-value sm" id="sum-amount">¥0.00</div></div>
+      <div><div class="field-label">预计发放额度</div><div class="stat-value sm" id="sum-credit">0 credit</div></div>
+    </div>
+    <button class="btn btn-cta" id="submit">核对并提交</button>
+  </div>
+</div>
+
+<script>
+const TENANTS = {
+  'T-1001': { name: '云启科技有限公司', code: 'T-1001' },
+  'T-1002': { name: '新签客户（首单）', code: 'T-1002' },
+};
+
+let seq = 100;
+const pid = () => 'SKU' + (++seq);
+
+// 商品身份 = cat + priceFen + credit；note 只用于显示，不参与去重
+// scope 本期恒为 'tenant'，'global' 只留字段不产生数据
+let PRODUCTS = [
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'seat', priceFen: 19900, credit: 2000, note: '专业版', uses: 4, lastUsed: '2026-07-28', createdAt: '2026-03-11', off: false },
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'seat', priceFen: 39900, credit: 5000, note: '旗舰版', uses: 2, lastUsed: '2026-08-02', createdAt: '2026-06-02', off: false },
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'seat', priceFen: 17900, credit: 2000, note: '专业版特价', uses: 1, lastUsed: '2026-05-11', createdAt: '2026-05-11', off: false },
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'seat', priceFen: 9900,  credit: 800,  note: '', uses: 1, lastUsed: '2026-03-19', createdAt: '2026-03-19', off: false },
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'pkg',  priceFen: 500000, credit: 1000000, note: '年度算力包', uses: 3, lastUsed: '2026-08-02', createdAt: '2026-04-11', off: false },
+  { id: pid(), scope: 'tenant', tenantId: 'T-1001', cat: 'pkg',  priceFen: 60000,  credit: 100000,  note: '', uses: 2, lastUsed: '2026-06-15', createdAt: '2026-06-15', off: false },
+];
+
+let tenantId = 'T-1001';
+let draft = null;
+let openPicker = null;
+let showOff = false;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const cny = (f) => '¥' + (f / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const n = (v) => Number(v || 0);
+const cm = (v) => Number(v).toLocaleString('en-US');
+const today = () => new Date().toISOString().slice(0, 10);
+const productOf = (id) => PRODUCTS.find((p) => p.id === id) || null;
+
+const UNIT = { seat: '/席位·月', pkg: '/个' };
+const CUNIT = { seat: ' credits/月', pkg: ' credits/个' };
+const CATNAME = { seat: '席位', pkg: '额度包' };
+const specOf = (p) => `${cny(p.priceFen)}${UNIT[p.cat]} · ${cm(p.credit)}${CUNIT[p.cat]}`;
+
+function visible(cat, includeOff) {
+  return PRODUCTS
+    .filter((p) => p.cat === cat && (p.scope === 'global' || p.tenantId === tenantId) && (includeOff || !p.off))
+    .sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+function dupOf(cat, priceFen, credit) {
+  return PRODUCTS.find((p) => p.cat === cat && (p.scope === 'global' || p.tenantId === tenantId)
+    && p.priceFen === priceFen && p.credit === credit) || null;
+}
+function addMonths(dateStr, months) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  if (isNaN(d) || !(n(months) > 0)) return null;
+  const d0 = d.getUTCDate();
+  const t = new Date(d.getTime());
+  t.setUTCMonth(t.getUTCMonth() + n(months));
+  if (t.getUTCDate() !== d0) t.setUTCDate(0);
+  return t.toISOString().slice(0, 10);
+}
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach((x) => x.remove());
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+const emptySeat = () => ({ productId: null, seats: '10', pool: '0', eff: today(), term: '1' });
+const emptyPkg  = () => ({ productId: null, count: '1', eff: today(), term: '1' });
+const freshDraft = () => ({ seats: [emptySeat()], pkgs: [] });
+const listOf = (kind) => draft[kind === 'seat' ? 'seats' : 'pkgs'];
+const rowOf = (kind, idx) => listOf(kind)[idx];
+
+// ── 渲染 ──────────────────────────────────────
+function pickerHtml(kind, idx, r) {
+  const p = productOf(r.productId);
+  const open = openPicker && openPicker.kind === kind && openPicker.idx === idx;
+  const label = p
+    ? `${p.note ? esc(p.note) : `${CATNAME[kind]}商品`}<span class="spec">${specOf(p)}</span>`
+    : '选择商品';
+  return `<div class="pk ${open ? 'open' : ''}" data-kind="${kind}" data-idx="${idx}">
+    <button class="pk-btn ${p ? '' : 'empty'}" data-open="1">${label}</button>
+    <span class="pk-caret">▼</span>
+    ${open ? popHtml(kind) : ''}
+  </div>`;
+}
+
+function popHtml(kind) {
+  const all = visible(kind, showOff);
+  const offCount = PRODUCTS.filter((p) => p.cat === kind && p.tenantId === tenantId && p.off).length;
+
+  const items = all.map((p) => `
+    <div class="pk-item ${p.off ? 'disabled' : ''}" data-pick="${p.id}">
+      <div class="pk-item-main">
+        <div class="pk-item-name">${p.note ? esc(p.note) : `<span class="muted">未填备注</span>`}${p.off ? ' · 已停用' : ''}</div>
+        <div class="pk-item-meta">${specOf(p)}</div>
+      </div>
+      <div class="pk-item-use">用过 ${p.uses} 次<br/><span style="opacity:.7">${p.lastUsed || '未用过'}</span></div>
+      <button class="pk-item-off" data-toggle="${p.id}">${p.off ? '启用' : '停用'}</button>
+    </div>`).join('');
+
+  const empty = !all.length
+    ? `<div class="pk-empty">该客户还没有${CATNAME[kind]}商品<br/>先新建一个，才能下单</div>` : '';
+
+  return `<div class="pk-pop">
+    ${all.length ? `<div class="pk-group">${esc(TENANTS[tenantId].name)} · ${CATNAME[kind]}商品</div>` : ''}
+    ${items}${empty}
+    ${offCount ? `<div class="pk-foot"><span>已停用 ${offCount} 个</span><button data-showoff="1">${showOff ? '隐藏' : '显示'}</button></div>` : ''}
+    <div class="pk-item pk-new" data-new="1">
+      <div class="pk-item-main">
+        <div class="pk-item-name">+ 新建${CATNAME[kind]}商品</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+const locked = (txt, blank) => blank ? `<div class="locked blank">—</div>` : `<div class="locked">${txt}</div>`;
+
+function seatRowHtml(r, i) {
+  const p = productOf(r.productId);
+  const amount = p ? p.priceFen * n(r.seats) * n(r.term) : 0;
+  const gift = p ? Math.round(p.credit * n(r.seats) * n(r.pool) / 100) : 0;
+  return `<tr data-kind="seat" data-idx="${i}">
+    <td>${pickerHtml('seat', i, r)}</td>
+    <td class="num">${locked(p ? cny(p.priceFen) : '', !p)}</td>
+    <td class="num">${locked(p ? cm(p.credit) : '', !p)}</td>
+    <td class="num g"><input class="f-seats" type="number" step="1" min="1" value="${esc(r.seats)}" style="width:64px" /></td>
+    <td class="num"><input class="f-pool" type="number" step="1" min="0" max="100" value="${esc(r.pool)}" style="width:64px" /></td>
+    <td class="num">${locked(p ? cm(gift) : '', !p)}</td>
+    <td class="g"><input class="f-eff" type="date" value="${esc(r.eff)}" style="width:140px" /></td>
+    <td class="num"><input class="f-term" type="number" step="1" min="1" value="${esc(r.term)}" style="width:64px" /></td>
+    <td class="mono">${addMonths(r.eff, r.term) || '—'}</td>
+    <td class="num g">${cny(amount)}</td>
+    <td><button class="btn-link danger" data-del="1">删除</button></td>
+  </tr>`;
+}
+
+function pkgRowHtml(r, i) {
+  const p = productOf(r.productId);
+  const amount = p ? p.priceFen * n(r.count) : 0;
+  return `<tr data-kind="pkg" data-idx="${i}">
+    <td>${pickerHtml('pkg', i, r)}</td>
+    <td class="num">${locked(p ? cny(p.priceFen) : '', !p)}</td>
+    <td class="num">${locked(p ? cm(p.credit) : '', !p)}</td>
+    <td class="num g"><input class="f-count" type="number" step="1" min="1" value="${esc(r.count)}" style="width:64px" /></td>
+    <td class="g"><input class="f-eff" type="date" value="${esc(r.eff)}" style="width:140px" /></td>
+    <td class="num"><input class="f-term" type="number" step="1" min="1" value="${esc(r.term)}" style="width:64px" /></td>
+    <td class="mono">${addMonths(r.eff, r.term) || '—'}</td>
+    <td class="num g">${cny(amount)}</td>
+    <td><button class="btn-link danger" data-del="1">删除</button></td>
+  </tr>`;
+}
+
+function paint() {
+  document.getElementById('t-name').textContent = TENANTS[tenantId].name;
+  document.getElementById('t-code').textContent = TENANTS[tenantId].code;
+
+  document.getElementById('seat-body').innerHTML =
+    draft.seats.length ? draft.seats.map(seatRowHtml).join('')
+      : `<tr><td colspan="11"><div class="empty">本单不含席位权益</div></td></tr>`;
+  document.getElementById('pkg-body').innerHTML =
+    draft.pkgs.length ? draft.pkgs.map(pkgRowHtml).join('')
+      : `<tr><td colspan="9"><div class="empty">本单不含额度包</div></td></tr>`;
+
+  let amount = 0, credit = 0;
+  draft.seats.forEach((r) => {
+    const p = productOf(r.productId); if (!p) return;
+    amount += p.priceFen * n(r.seats) * n(r.term);
+    credit += p.credit * n(r.seats) * n(r.term);
+    if (n(r.pool) > 0) credit += Math.round(p.credit * n(r.seats) * n(r.pool) / 100) * n(r.term);
+  });
+  draft.pkgs.forEach((r) => {
+    const p = productOf(r.productId); if (!p) return;
+    amount += p.priceFen * n(r.count);
+    credit += p.credit * n(r.count);
+  });
+  document.getElementById('sum-amount').textContent = cny(amount);
+  document.getElementById('sum-credit').textContent = cm(credit) + ' credit';
+}
+
+// ── 新建商品 ──────────────────────────────────
+function openCreateModal(kind, idx) {
+  const isSeat = kind === 'seat';
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">新建${CATNAME[kind]}商品</div>
+        <div class="modal-desc">归属 ${esc(TENANTS[tenantId].name)} · 保存后不可修改，需要其他价格请另建一个</div>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-row">
+            <label>${isSeat ? '单价（元/席位·月）' : '单价（元/个）'}<span class="req">*</span></label>
+            <input id="np-price" type="number" step="0.01" min="0.01" placeholder="0.00" />
+          </div>
+          <div class="form-row">
+            <label>${isSeat ? '每席位每月 credit' : '单个 credit 数量'}<span class="req">*</span></label>
+            <input id="np-credit" type="number" step="1" min="1" placeholder="0" />
+          </div>
+        </div>
+        <div class="form-row">
+          <label>备注名（可选）</label>
+          <input id="np-note" type="text" placeholder="${isSeat ? '如：专业版' : '如：年度算力包'}" />
+          <div class="form-help">仅用于展示，不参与去重</div>
+        </div>
+        <div id="np-warn"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="1">取消</button>
+        <button class="btn btn-cta" data-save="1">保存并选中</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  const priceEl = ov.querySelector('#np-price');
+  const creditEl = ov.querySelector('#np-credit');
+  const noteEl = ov.querySelector('#np-note');
+  const warnEl = ov.querySelector('#np-warn');
+  priceEl.focus();
+
+  function refresh() {
+    const priceFen = Math.round(n(priceEl.value) * 100);
+    const credit = n(creditEl.value);
+    if (!(priceFen > 0) || !(credit > 0)) { warnEl.innerHTML = ''; return; }
+    const dup = dupOf(kind, priceFen, credit);
+    warnEl.innerHTML = dup
+      ? `<div class="warn-box">已存在相同商品${dup.note ? `（${esc(dup.note)}）` : ''}${dup.off ? '，当前为停用状态' : ''}，保存时直接选中它，不重复创建</div>`
+      : `<div class="ok-box">将创建：${cny(priceFen)}${UNIT[kind]} · ${cm(credit)}${CUNIT[kind]}</div>`;
+  }
+  priceEl.addEventListener('input', refresh);
+  creditEl.addEventListener('input', refresh);
+
+  ov.querySelector('[data-close]').onclick = () => ov.remove();
+  ov.querySelector('[data-save]').onclick = () => {
+    const priceFen = Math.round(n(priceEl.value) * 100);
+    const credit = n(creditEl.value);
+    if (!(priceFen > 0) || !(credit > 0)) { toast('单价与额度都要填，且大于 0'); return; }
+
+    const dup = dupOf(kind, priceFen, credit);
+    if (dup) {
+      if (dup.off) { toast('已存在相同商品但处于停用状态，请先在下拉里启用'); return; }
+      rowOf(kind, idx).productId = dup.id;
+      ov.remove(); openPicker = null; paint();
+      toast('已存在相同商品，未重复创建，已为你选中');
+      return;
+    }
+    const p = { id: pid(), scope: 'tenant', tenantId, cat: kind, priceFen, credit,
+      note: noteEl.value.trim(), uses: 0, lastUsed: '', createdAt: today(), off: false };
+    PRODUCTS.push(p);
+    rowOf(kind, idx).productId = p.id;
+    ov.remove(); openPicker = null; paint();
+    toast(`商品已创建并选中：${cny(priceFen)}${UNIT[kind]} · ${cm(credit)}${CUNIT[kind]}`);
+  };
+}
+
+// ── 事件 ──────────────────────────────────────
+document.addEventListener('input', (e) => {
+  const tr = e.target.closest('tr[data-kind]');
+  if (!tr) return;
+  const r = rowOf(tr.dataset.kind, +tr.dataset.idx);
+  const cls = e.target.className;
+  if (cls === 'f-seats') r.seats = e.target.value;
+  else if (cls === 'f-count') r.count = e.target.value;
+  else if (cls === 'f-pool') r.pool = e.target.value;
+  else if (cls === 'f-eff') r.eff = e.target.value;
+  else if (cls === 'f-term') r.term = e.target.value;
+  const sel = e.target.selectionStart;
+  paint();
+  const again = document.querySelector(`tr[data-kind="${tr.dataset.kind}"][data-idx="${tr.dataset.idx}"] .${cls}`);
+  if (again) { again.focus(); try { again.setSelectionRange(sel, sel); } catch (_) {} }
+});
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.modal')) return;
+
+  const opener = e.target.closest('[data-open]');
+  if (opener) {
+    const box = opener.closest('.pk');
+    const kind = box.dataset.kind, idx = +box.dataset.idx;
+    openPicker = (openPicker && openPicker.kind === kind && openPicker.idx === idx) ? null : { kind, idx };
+    paint();
+    return;
+  }
+  const off = e.target.closest('[data-toggle]');
+  if (off) {
+    e.stopPropagation();
+    const p = productOf(off.dataset.toggle);
+    if (!p.off) {
+      const used = [...draft.seats, ...draft.pkgs].some((r) => r.productId === p.id);
+      if (!confirm(`停用「${p.note || specOf(p)}」？\n${specOf(p)}\n\n停用后不再出现在下拉里，历史订单不受影响。${used ? '\n当前草稿里有行正在使用它，停用后该行会被清空。' : ''}`)) return;
+      p.off = true;
+      [...draft.seats, ...draft.pkgs].forEach((r) => { if (r.productId === p.id) r.productId = null; });
+      toast('已停用');
+    } else { p.off = false; toast('已启用'); }
+    paint();
+    return;
+  }
+  const so = e.target.closest('[data-showoff]');
+  if (so) { e.stopPropagation(); showOff = !showOff; paint(); return; }
+
+  const pick = e.target.closest('[data-pick]');
+  if (pick) {
+    const p = productOf(pick.dataset.pick);
+    if (p.off) { toast('该商品已停用，先启用再选'); return; }
+    rowOf(openPicker.kind, openPicker.idx).productId = p.id;
+    openPicker = null; paint();
+    return;
+  }
+  if (e.target.closest('[data-new]')) {
+    const { kind, idx } = openPicker;
+    openPicker = null; paint();
+    openCreateModal(kind, idx);
+    return;
+  }
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const tr = del.closest('tr');
+    listOf(tr.dataset.kind).splice(+tr.dataset.idx, 1);
+    openPicker = null; paint();
+    return;
+  }
+  if (!e.target.closest('.pk') && openPicker) { openPicker = null; paint(); }
+});
+
+document.getElementById('add-seat').onclick = () => { draft.seats.push(emptySeat()); openPicker = null; paint(); };
+document.getElementById('add-pkg').onclick = () => { draft.pkgs.push(emptyPkg()); openPicker = null; paint(); };
+document.getElementById('t-switch').onchange = (e) => {
+  tenantId = e.target.value; draft = freshDraft(); openPicker = null; showOff = false; paint();
+};
+
+// ── 提交 ──────────────────────────────────────
+document.getElementById('submit').onclick = () => {
+  const rowsAll = [...draft.seats, ...draft.pkgs];
+  if (!rowsAll.length) { toast('至少要有一行席位或额度包'); return; }
+  if (rowsAll.some((r) => !r.productId)) { toast('还有行没有选择商品'); return; }
+
+  const rows = [
+    ...draft.seats.map((r) => { const p = productOf(r.productId);
+      return `<div class="diff-item"><span class="badge info">席位</span><span>${p.note ? esc(p.note) + ' · ' : ''}${specOf(p)} × ${r.seats} 席 × ${r.term} 月${n(r.pool) > 0 ? ` · 池化 ${r.pool}%，每月赠 ${cm(Math.round(p.credit * n(r.seats) * n(r.pool) / 100))}` : ''}</span><span style="margin-left:auto" class="mono">${cny(p.priceFen * n(r.seats) * n(r.term))}</span></div>`; }),
+    ...draft.pkgs.map((r) => { const p = productOf(r.productId);
+      return `<div class="diff-item"><span class="badge mute">额度包</span><span>${p.note ? esc(p.note) + ' · ' : ''}${specOf(p)} × ${r.count} 个</span><span style="margin-left:auto" class="mono">${cny(p.priceFen * n(r.count))}</span></div>`; }),
+  ].join('');
+
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal wide">
+      <div class="modal-head">
+        <div class="modal-title">核对订单</div>
+        <div class="modal-desc">确认下发后不可撤销</div>
+      </div>
+      <div class="modal-body"><div class="diff-list">${rows}</div></div>
+      <div class="modal-foot">
+        <button class="btn" data-close="1">返回修改</button>
+        <button class="btn btn-cta" data-confirm="1">确认下发</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('[data-close]').onclick = () => ov.remove();
+  ov.querySelector('[data-confirm]').onclick = () => {
+    const orderNo = 'CO-2608-' + String(Math.floor(Math.random() * 900) + 100);
+    rowsAll.forEach((r) => { const p = productOf(r.productId); if (p) { p.uses += 1; p.lastUsed = today(); } });
+    ov.remove();
+    draft = freshDraft(); openPicker = null; paint();
+    toast(`${orderNo} 下发成功`);
+  };
+};
+
+draft = freshDraft();
+paint();
+</script>
+</body>
+</html>

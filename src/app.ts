@@ -11,6 +11,7 @@ import { Store } from './store/store.ts';
 import { AuditService } from './services/audit.ts';
 import { Notifier } from './services/notifier.ts';
 import type { Ctx } from './services/context.ts';
+import { getTenant } from './services/context.ts';
 import { TenantService } from './services/tenant.ts';
 import type { CreateTenantInput } from './services/tenant.ts';
 import { SeatService } from './services/seat.ts';
@@ -19,6 +20,8 @@ import { ModelService } from './services/model.ts';
 import { TrialService } from './services/trial.ts';
 import { QueryService } from './services/query.ts';
 import { ExportService } from './services/export.ts';
+import { CorpOrderService } from './services/corpOrder.ts';
+import { ProductService } from './services/product.ts';
 import { DailyJobs } from './jobs/daily.ts';
 
 export interface FirstAdminInput {
@@ -45,6 +48,15 @@ export interface CreateTenantCommand extends CreateTenantInput {
   firstAdmin: FirstAdminInput;
 }
 
+/** 待开通租户「转正式」一次性开通资源（租户管理列表内联操作） */
+export interface ActivateTenantInput {
+  seatCount: number;
+  purchasedCredit: number;
+  modelGroups?: string[];
+  modelCodes?: string[];
+  firstAdmin: FirstAdminInput;
+}
+
 export class PlatformConsole {
   store: Store;
   clock: Clock;
@@ -60,6 +72,8 @@ export class PlatformConsole {
   trials: TrialService;
   query: QueryService;
   exports: ExportService;
+  corpOrders: CorpOrderService;
+  products: ProductService;
   jobs: DailyJobs;
 
   constructor(clock: Clock = systemClock, store: Store = new Store()) {
@@ -88,12 +102,15 @@ export class PlatformConsole {
       this.models,
     );
     this.query = new QueryService(this.ctx, this.seats, this.quota, this.models);
+    this.products = new ProductService(this.ctx);
+    this.corpOrders = new CorpOrderService(this.ctx, this.seats, this.quota, this.products);
     this.exports = new ExportService(
       this.ctx,
       this.seats,
       this.quota,
       this.audit,
       this.query,
+      this.corpOrders,
     );
     this.jobs = new DailyJobs(
       this.ctx,
@@ -193,5 +210,67 @@ export class PlatformConsole {
     }
 
     return this.store.tenants.get(tenant.id)!;
+  }
+
+  /**
+   * 待开通租户「转正式」一次性开通（租户管理列表内联操作）。
+   * 逻辑对齐 createTenant() 的 mode==='active' 分支，跳过创建租户本身。
+   */
+  activateTenant(actor: Actor, tenantId: string, input: ActivateTenantInput): Tenant {
+    requirePermission(actor, 'platform.tenant.create');
+    const tenant = getTenant(this.ctx, tenantId);
+
+    if (tenant.status !== 'pending') {
+      fail('VALIDATION_ERROR', '仅待开通租户可通过该入口一次性开通', {
+        tenantId,
+        status: tenant.status,
+      });
+    }
+    if (!input.firstAdmin?.memberId) {
+      fail('VALIDATION_ERROR', '必须指定首个租户管理员', { field: 'firstAdmin' });
+    }
+    if (input.seatCount <= 0) {
+      fail('VALIDATION_ERROR', '初始席位数必须大于 0', { seatCount: input.seatCount });
+    }
+
+    this.seats.grant(SYSTEM_ACTOR, tenantId, {
+      seatCount: input.seatCount,
+      source: 'contract',
+      expireAt: tenant.contractEndAt ?? null,
+      contractNo: tenant.contractNo ?? null,
+      remark: '一次性开通正式',
+    });
+    if (input.purchasedCredit > 0) {
+      this.quota.grant(SYSTEM_ACTOR, tenantId, {
+        amountCredit: input.purchasedCredit,
+        source: 'contract',
+        contractNo: tenant.contractNo ?? null,
+        reason: '一次性开通正式',
+      });
+    }
+    for (const group of input.modelGroups ?? []) {
+      this.models.grantGroup(SYSTEM_ACTOR, tenantId, group);
+    }
+    for (const code of input.modelCodes ?? []) {
+      this.models.grantModel(SYSTEM_ACTOR, tenantId, { modelCode: code });
+    }
+
+    this.tenants.activate(actor, tenantId, '一次性开通正式');
+    this.seats.assign(tenantId, {
+      memberId: input.firstAdmin.memberId,
+      memberName: input.firstAdmin.name,
+      memberEmail: input.firstAdmin.email,
+      isAdmin: true,
+    });
+    this.audit.record({
+      actor,
+      tenantId,
+      objectType: 'tenant_admin',
+      objectId: input.firstAdmin.memberId,
+      action: 'set_first_admin',
+      summary: `设置 ${input.firstAdmin.email} 为 ${tenant.name} 的首个管理员`,
+    });
+
+    return this.store.tenants.get(tenantId)!;
   }
 }

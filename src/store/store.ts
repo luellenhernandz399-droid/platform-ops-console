@@ -5,8 +5,11 @@ import type {
   AuditLog,
   BillingPeriod,
   CatalogModel,
+  CorpOrder,
+  CorpOrderGrantDetail,
   LifecycleEvent,
   ModelGroupFollow,
+  Product,
   QuotaGrant,
   QuotaLedgerEntry,
   SeatAssignment,
@@ -113,6 +116,10 @@ export class Store {
   trialPlans = new Table<TrialPlan>();
   lifecycleEvents = new Table<LifecycleEvent>();
   auditLogs = new Table<AuditLog>();
+  corpOrders = new Table<CorpOrder>();
+  corpOrderGrantDetails = new Table<CorpOrderGrantDetail>();
+  /** 商品目录（PRD-席位与额度包商品化），历史留痕数据，不随 purgeTenantBusinessData 清除 */
+  products = new Table<Product>();
 
   /** 幂等键 → 已产生的结果标识（Spec 14.1） */
   idempotency = new Map<string, { at: string; resultId: string }>();

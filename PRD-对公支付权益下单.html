@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>对公支付·权益下单 PRD</title>
+<style>
+  :root {
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --text: #23201c;
+    --text-soft: #6b6459;
+    --accent: #a8471f;
+    --rule: #e6e1d8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.75;
+  }
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 64px 32px 96px;
+  }
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 48px 0 16px;
+    padding-top: 8px;
+    border-top: 2px solid var(--accent);
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 28px 0 10px;
+    color: var(--text);
+  }
+  p {
+    margin: 0 0 14px;
+    color: var(--text-soft);
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 40px 0;
+  }
+  blockquote {
+    margin: 20px 0;
+    padding: 12px 18px;
+    background: #fff4ec;
+    border-left: 3px solid var(--accent);
+    color: #6b3d22;
+    font-size: 0.95rem;
+  }
+  .item {
+    display: flex;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding-left: 2px;
+  }
+  .item .num {
+    flex: 0 0 auto;
+    min-width: 26px;
+    text-align: right;
+    color: var(--text-soft);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+  }
+  .item .txt { color: var(--text); }
+  .subitem {
+    margin: 0 0 8px 46px;
+    color: var(--text-soft);
+    font-size: 0.95rem;
+  }
+  code {
+    background: #f1ede4;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  strong { color: var(--text); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>对公支付 · 权益下单 PRD</h1>
+<h2>0 范围</h2>
+<div class="item"><span class="num">1</span><span class="txt">本文只描述「创建订单」「查看历史」两个按钮<strong>点击之后</strong>的页面与逻辑。</span></div>
+<div class="item"><span class="num">2</span><span class="txt">两个按钮（或卡片）挂在哪里、长什么样，不在本文范围，由接入方决定。接入方只需在点击时传入 <code>租户 ID</code>。</span></div>
+<div class="item"><span class="num">3</span><span class="txt">两个页面出现后的所有逻辑与本文一致，不随入口位置变化。</span></div>
+<div class="item"><span class="num">4</span><span class="txt">本期只做：配置能力、下发字段、留痕。额度扣减逻辑与下发的具体实现归下游。</span></div>
+<div class="item"><span class="num">5</span><span class="txt">操作角色为售前，页面在内部运营后台。客户侧只读下发结果，不在本文范围。</span></div>
+<hr>
+<h2>1 页面结构</h2>
+<div class="item"><span class="num">6</span><span class="txt">点击后进入同一个容器页，内含两个同级 tab：<strong>创建订单</strong>、<strong>查看历史</strong>。</span></div>
+<div class="item"><span class="num">7</span><span class="txt">点「创建订单」落在 tab 1，点「查看历史」落在 tab 2。</span></div>
+<div class="item"><span class="num">8</span><span class="txt">两个 tab 可互相切换，切换不重新拉数据、不清空表单。</span></div>
+<div class="item"><span class="num">9</span><span class="txt">容器页头部固定「← 返回」，回到入口页。</span></div>
+<div class="item"><span class="num">10</span><span class="txt">容器页头部展示客户名称、租户 ID、当前状态，以及四项 KPI：当前席位、共享池余额、历史订单数、累计金额。</span></div>
+<hr>
+<h2>2 tab 1 · 创建订单</h2>
+<h3>2.1 区块顺序</h3>
+<div class="item"><span class="num">11</span><span class="txt">自上而下四个区块：订单信息、对公付款凭证、席位明细、额度包；底部为金额汇总与提交条。</span></div>
+<h3>2.2 订单信息</h3>
+<div class="item"><span class="num">12</span><span class="txt">只读，系统带出：客户名称、租户 ID、下单售前（当前登录账号）、下单时间。</span></div>
+<h3>2.3 对公付款凭证</h3>
+<div class="item"><span class="num">13</span><span class="txt">必填。支持 PDF / JPG / PNG，单文件不超过 10 MB。</span></div>
+<div class="item"><span class="num">14</span><span class="txt">本期不校验金额、真伪、与订单的匹配关系，上传即视为有效。</span></div>
+<div class="item"><span class="num">15</span><span class="txt">已上传后展示文件名、上传人、上传时间，可点击重新上传并覆盖。</span></div>
+<div class="item"><span class="num">16</span><span class="txt">未上传时提交拦截。</span></div>
+<h3>2.4 席位明细</h3>
+<div class="item"><span class="num">17</span><span class="txt">支持多行，一张订单可包含多个不同档位的席位行。</span></div>
+<div class="item"><span class="num">18</span><span class="txt">每行字段：席位档位、单价（元/席位·月）、每席位每月 credits、席位个数、生效日期、有效期（月）。</span></div>
+<div class="item"><span class="num">19</span><span class="txt">席位档位为下拉三选一：基础版、专业版、旗舰版。</span></div>
+<div class="item"><span class="num">20</span><span class="txt">切换档位自动带出该档默认单价与默认月额度。</span></div>
+<div class="item"><span class="num">21</span><span class="txt">带出后单价与月额度仍可手动修改，修改后行内提示「已改为自定义」。</span></div>
+<div class="item"><span class="num">22</span><span class="txt">档位与其默认值需后台可配置，调价不发版。</span></div>
+<div class="item"><span class="num">23</span><span class="txt">生效日期为日历选择，支持任意日期（应对客户月中购买）。</span></div>
+<div class="item"><span class="num">24</span><span class="txt">有效期按自然年月计算，到期日 = 生效日 + N 个自然月，由系统派生只读展示。</span></div>
+<div class="item"><span class="num">25</span><span class="txt">行金额 = 单价 × 席位个数 × 有效期月数，派生只读展示。</span></div>
+<div class="item"><span class="num">26</span><span class="txt">同一档位允许重复添加（用于不同生效日的两批席位）。</span></div>
+<div class="item"><span class="num">27</span><span class="txt">每行右上角有「删除本行」按钮，点击时二次确认并念出该行档位与席位数。</span></div>
+<div class="item"><span class="num">28</span><span class="txt">席位行可删至 0 行，此时本单不含席位。</span></div>
+<h3>2.5 赠送共享池化额度</h3>
+<div class="item"><span class="num">29</span><span class="txt">作为从属区块嵌在<strong>每一行席位内部</strong>，不是订单级配置。</span></div>
+<div class="item"><span class="num">30</span><span class="txt">仅一个输入字段：池化系数（%），纯数字输入，无开关、无下拉档位。</span></div>
+<div class="item"><span class="num">31</span><span class="txt">取值范围 0–100，0 表示不赠送。超出范围时输入框标红并拦截提交。</span></div>
+<div class="item"><span class="num">32</span><span class="txt">赠送量 = 该行每席位月额度 × 该行席位个数 × 该行池化系数。</span></div>
+<div class="item"><span class="num">33</span><span class="txt">赠送期数与发放锚点跟随所在行的生效日与有效期。</span></div>
+<div class="item"><span class="num">34</span><span class="txt">赠送不计价，行金额恒为 ¥0。</span></div>
+<div class="item"><span class="num">35</span><span class="txt">额度包不计入赠送基数。</span></div>
+<h3>2.6 额度包</h3>
+<div class="item"><span class="num">36</span><span class="txt">单行，不支持多行。</span></div>
+<div class="item"><span class="num">37</span><span class="txt">可通过「计入本单」开关整体关闭，关闭后字段置灰但保留已填值。</span></div>
+<div class="item"><span class="num">38</span><span class="txt">字段：商品名称、总价（元）、额度量（credits）、生效日期、有效期（月，默认 6，可改）。</span></div>
+<div class="item"><span class="num">39</span><span class="txt">售前直接填总价与额度量，系统派生展示折算单价（元 / 1000 credits），只读。</span></div>
+<div class="item"><span class="num">40</span><span class="txt">一次性到账，不按月拆分。</span></div>
+<div class="item"><span class="num">41</span><span class="txt">有效期与席位解耦，可各配各的生效日；席位到期后未过期的额度包仍可用。</span></div>
+<h3>2.7 金额汇总</h3>
+<div class="item"><span class="num">42</span><span class="txt">按行展示：每行席位一条，赠送作为该行子条显示 ¥0，额度包一条。</span></div>
+<div class="item"><span class="num">43</span><span class="txt">订单总额 = 各席位行金额之和 + 额度包总价。</span></div>
+<div class="item"><span class="num">44</span><span class="txt">另行展示下发 credits 总量 = 席位附带总量 + 赠送总量 + 额度包额度量。</span></div>
+<div class="item"><span class="num">45</span><span class="txt">任一输入变化时实时重算，无需点计算按钮。</span></div>
+<h3>2.8 提交校验</h3>
+<div class="item"><span class="num">46</span><span class="txt">点「提交订单」时校验：</span></div>
+<div class="subitem">凭证已上传</div>
+<div class="subitem">至少一行席位或额度包计入本单</div>
+<div class="subitem">所有必填项大于 0</div>
+<div class="subitem">每行池化系数在 0–100 之间</div>
+<div class="item"><span class="num">47</span><span class="txt">校验不通过：页面顶部红框逐条列出缺失项并滚动定位，不弹窗、不跳转。</span></div>
+<div class="item"><span class="num">48</span><span class="txt">校验通过：弹出核对弹窗。</span></div>
+<hr>
+<h2>3 提交后的三态弹窗</h2>
+<h3>3.1 核对态</h3>
+<div class="item"><span class="num">49</span><span class="txt">内容三段：订单内容（逐行列出规格、生效期、赠送量、金额，末行总额）、将下发的额度（按类型与归属汇总条数与合计额度）、留痕信息。</span></div>
+<div class="item"><span class="num">50</span><span class="txt">底部固定提示：确认下发后不可撤销。</span></div>
+<div class="item"><span class="num">51</span><span class="txt">两个按钮：「返回修改」「确认下发」。</span></div>
+<div class="item"><span class="num">52</span><span class="txt">点「返回修改」关闭弹窗回到表单，草稿完整保留。</span></div>
+<div class="item"><span class="num">53</span><span class="txt"><strong>此阶段不产生任何写操作</strong>，不落单、不生成单据号、不占号。</span></div>
+<h3>3.2 下发中态</h3>
+<div class="item"><span class="num">54</span><span class="txt">点「确认下发」后进入，此刻才写入订单并调用下游接口。</span></div>
+<div class="item"><span class="num">55</span><span class="txt">展示加载状态，禁止重复点击。</span></div>
+<h3>3.3 成功态</h3>
+<div class="item"><span class="num">56</span><span class="txt">下游返回成功后展示，此时才生成单据 ID。</span></div>
+<div class="item"><span class="num">57</span><span class="txt">内容两段：下发确认（按类型与归属汇总）、订单留痕（单据 ID、客户、售前、时间、凭证、金额）。</span></div>
+<div class="item"><span class="num">58</span><span class="txt">同步更新客户的当前席位数与共享池余额。</span></div>
+<div class="item"><span class="num">59</span><span class="txt">表单草稿清空。</span></div>
+<div class="item"><span class="num">60</span><span class="txt">两个出口：「查看订单详情」进入订单详情页；「查看该客户历史」停留在同一客户并落在 tab 2。</span></div>
+<hr>
+<h2>4 tab 2 · 查看历史</h2>
+<div class="item"><span class="num">61</span><span class="txt">内含两个子 tab：订单记录、额度明细。</span></div>
+<div class="item"><span class="num">62</span><span class="txt">右上角提供搜索框与「导出」按钮，导出范围为该客户全部订单。</span></div>
+<h3>4.1 订单记录</h3>
+<div class="item"><span class="num">63</span><span class="txt">列：订单号、订单内容、金额、明细条数、下单售前、关联凭证、下单时间、状态、操作。</span></div>
+<div class="item"><span class="num">64</span><span class="txt">订单号与「详情」均可点击进入订单详情页。</span></div>
+<div class="item"><span class="num">65</span><span class="txt">状态取值：生效中、即将到期、未开始、已过期，以徽章样式展示。</span></div>
+<h3>4.2 额度明细</h3>
+<div class="item"><span class="num">66</span><span class="txt">将该客户所有订单的下发明细拉平展示。</span></div>
+<div class="item"><span class="num">67</span><span class="txt">列：序号、所属订单、来源、类型、归属、额度量、生效日、到期日。</span></div>
+<div class="item"><span class="num">68</span><span class="txt">所属订单可点击进入订单详情页。</span></div>
+<hr>
+<h2>5 订单详情页</h2>
+<div class="item"><span class="num">69</span><span class="txt">纯只读，无任何写入口。</span></div>
+<div class="item"><span class="num">70</span><span class="txt">四个区块：订单留痕、席位授权、额度包、额度下发明细。</span></div>
+<div class="item"><span class="num">71</span><span class="txt">订单留痕：单据 ID、客户、下单售前、下单时间、关联凭证、订单金额、下发 credits 总量、明细条数。</span></div>
+<div class="item"><span class="num">72</span><span class="txt">席位授权：按行展示档位、席位数、单价、每席位月额度、生效日、到期日、池化系数、行金额。</span></div>
+<div class="item"><span class="num">73</span><span class="txt">额度下发明细：完整列出全部 grant，不截断。</span></div>
+<div class="item"><span class="num">74</span><span class="txt">头部提供「导出本单」。</span></div>
+<div class="item"><span class="num">75</span><span class="txt">「← 返回」按进入路径回退：从查看历史进则回查看历史。</span></div>
+<hr>
+<h2>6 额度发放与归属规则</h2>
+<div class="item"><span class="num">76</span><span class="txt">席位附带额度<strong>按月发放</strong>，每期发一个月的量，不一次性发满。</span></div>
+<div class="item"><span class="num">77</span><span class="txt">发放锚点按自然月同日：生效日为 15 日则每月 15 日发一期。</span></div>
+<div class="item"><span class="num">78</span><span class="txt">月末锚点顺延规则：生效日为 29/30/31 日时，遇当月无此日期则顺延至当月最后一天。</span></div>
+<div class="item"><span class="num">79</span><span class="txt">每期额度有效期 31 天，到期清零、不结转到下月。</span></div>
+<div class="item"><span class="num">80</span><span class="txt">赠送额度同样按月发放，规则同上，期数跟随所在席位行。</span></div>
+<div class="item"><span class="num">81</span><span class="txt">额度包一次性到账，有效期内一直有效。</span></div>
+<div class="item"><span class="num">82</span><span class="txt">归属：席位附带额度绑定到个人；额度包与赠送额度进入共享池。</span></div>
+<div class="item"><span class="num">83</span><span class="txt">共享池额度由企业管理员在企业内二次分配，售前不指定分配对象。</span></div>
+<hr>
+<h2>7 下发给下游的字段</h2>
+<div class="item"><span class="num">84</span><span class="txt">采用<strong>明细结构</strong>：一次提交在本侧展开成逐期 grant 明细推送，不下发周期规则。</span></div>
+<div class="item"><span class="num">85</span><span class="txt">席位授权记录（每行席位一条）：租户 ID、档位、席位数、每席位月额度、生效日、到期日、来源单据 ID。</span></div>
+<div class="item"><span class="num">86</span><span class="txt">额度 grant 记录（逐期一条）：租户 ID、来源行、grant 类型（席位附带 / 赠送 / 额度包）、归属（个人 / 共享池）、额度量、生效日、到期日、来源单据 ID。</span></div>
+<div class="item"><span class="num">87</span><span class="txt">条数 = 各席位行的期数之和 + 各席位行有赠送时的期数之和 + 额度包 1 条。</span></div>
+<div class="item"><span class="num">88</span><span class="txt">示例：专业版 12 个月含 20% 赠送 + 旗舰版 12 个月含 30% 赠送 + 额度包 = 49 条。</span></div>
+<hr>
+<h2>8 留痕</h2>
+<div class="item"><span class="num">89</span><span class="txt">每笔订单留存：单据 ID、下单售前账号、下单时间、凭证文件、配置内容快照、订单金额、下发结果。</span></div>
+<div class="item"><span class="num">90</span><span class="txt">上述各项用同一个来源单据 ID 串联。</span></div>
+<div class="item"><span class="num">91</span><span class="txt">多次下单按<strong>叠加</strong>处理，新单追加，历史订单不被修改或覆盖。</span></div>
+<div class="item"><span class="num">92</span><span class="txt">留痕信息不在客户侧展示。</span></div>
+<hr>
+<h2>9 跳转逻辑</h2>
+<div class="item"><span class="num">93</span><span class="txt">入口按钮 → 容器页（创建订单 tab 或 查看历史 tab）。</span></div>
+<div class="item"><span class="num">94</span><span class="txt">创建订单 tab ↔ 查看历史 tab：同级切换，不入返回记录，草稿保留。</span></div>
+<div class="item"><span class="num">95</span><span class="txt">查看历史两个子 tab 点订单号 → 订单详情页。</span></div>
+<div class="item"><span class="num">96</span><span class="txt">提交订单 → 核对弹窗 → 下发中 → 成功；成功后可去订单详情页，或回到查看历史 tab。</span></div>
+<div class="item"><span class="num">97</span><span class="txt">订单详情页「← 返回」按进入路径回退一层。</span></div>
+<div class="item"><span class="num">98</span><span class="txt">容器页「← 返回」回到入口页。</span></div>
+<div class="item"><span class="num">99</span><span class="txt">不产生跳转的动作：tab 切换、子 tab 切换、导出、席位行增删、额度包开关。</span></div>
+<hr>
+<h2>10 待定项</h2>
+<div class="item"><span class="num">100</span><span class="txt">下发失败的处理：是否提供重试，订单是否以「下发失败」状态入库，失败时客户席位与共享池是否回滚。</span></div>
+<div class="item"><span class="num">101</span><span class="txt">核对弹窗内容过长：席位行超过三至四行时弹窗高度过大，是否改为独立确认页。</span></div>
+<div class="item"><span class="num">102</span><span class="txt">草稿保护：创建订单 tab 填写中途点「← 返回」，是否二次确认。</span></div>
+<div class="item"><span class="num">103</span><span class="txt">凭证复用：同一张凭证能否连开多单，当前每次进入创建 tab 均需重新上传。</span></div>
+<div class="item"><span class="num">104</span><span class="txt">席位行数上限：当前不限，是否设上限防止误操作。</span></div>
+<div class="item"><span class="num">105</span><span class="txt">赠送额度出现小数时的取整规则：向下取整 / 四舍五入 / 保留小数。</span></div>
+<blockquote>100 与 102 影响开发工期，建议排期前确定。</blockquote>
+
+</div>
+</body>
+</html>

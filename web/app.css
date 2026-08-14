@@ -94,12 +94,12 @@ table { border-collapse: collapse; width: 100%; }
   box-shadow: var(--pc-shadow-card);
 }
 .card-head {
-  display: flex; align-items: center; gap: var(--pc-space-4);
+  display: flex; align-items: center; gap: var(--pc-space-4); flex-wrap: wrap;
   padding: var(--pc-space-5) var(--pc-space-6);
   border-bottom: 1px solid var(--color-border);
 }
 .card-title { font-size: var(--pc-text-md); font-weight: 500; }
-.card-note { font-size: var(--pc-text-xs); color: var(--color-fg-muted); }
+.card-note { font-size: var(--pc-text-xs); color: var(--color-fg-muted); flex: 1 1 220px; min-width: 0; }
 .card-actions { margin-left: auto; display: flex; gap: var(--pc-space-2); }
 .card-body { padding: var(--pc-space-6); }
 .card-body.flush { padding: 0; }
@@ -182,9 +182,84 @@ td.mono { font-family: var(--pc-font-mono); font-size: var(--pc-text-xs); }
 .cell-actions { display: flex; gap: var(--pc-space-3); justify-content: flex-end; white-space: nowrap; }
 .empty { padding: var(--pc-space-10); text-align: center; color: var(--color-fg-subtle); font-size: var(--pc-text-sm); }
 
+/* 表格内联输入：默认无边框浏览器控件太生硬，统一成表单同款外观 */
+td input, td select {
+  border: 1px solid var(--color-divider); border-radius: var(--pc-radius-xs);
+  padding: 5px var(--pc-space-3); background: var(--color-surface);
+  font-size: var(--pc-text-sm); width: 100%;
+}
+td input:focus, td select:focus {
+  outline: none; border-color: var(--pc-teal-400); box-shadow: 0 0 0 2px var(--pc-teal-50);
+}
+td input:hover, td select:hover { border-color: var(--pc-gray-400); }
+
 /* 主副两行：主行美元、副行 credit 真值 */
 .dual-main { font-variant-numeric: tabular-nums; }
 .dual-sub { font-size: var(--pc-text-xs); color: var(--color-fg-subtle); font-family: var(--pc-font-mono); }
+
+/* 分组表头：商品化改造后席位/额度包行按「商品｜本单用量｜周期｜金额」分组 */
+thead tr.grp th {
+  border-bottom: none; padding-bottom: var(--pc-space-2);
+  font-size: var(--pc-text-xs); color: var(--color-fg-subtle); background: #fcfcfc;
+}
+tbody td.g, thead th.g { background: var(--pc-teal-50); }
+
+/* 只读单元格：商品选定后单价/额度列不可编辑，未选商品时显示占位横线 */
+.locked {
+  padding: 5px var(--pc-space-3); border-radius: var(--pc-radius-xs);
+  background: var(--color-sunken); color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.locked.blank { color: var(--color-fg-subtle); text-align: center; }
+
+/* 商品选择器：内嵌下拉，点击展开弹出层，选定后展示备注名+规格 */
+.pk { position: relative; }
+.pk-btn {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; text-align: left;
+  border: 1px solid var(--color-divider); border-radius: var(--pc-radius-xs);
+  padding: 5px var(--pc-space-3); background: var(--color-surface);
+  font-size: var(--pc-text-sm); cursor: pointer;
+}
+.pk-btn:hover { border-color: var(--pc-gray-400); }
+.pk-btn.empty { color: var(--color-fg-subtle); }
+.pk.open .pk-btn { border-color: var(--pc-teal-400); box-shadow: 0 0 0 2px var(--pc-teal-50); }
+.pk-btn .spec { font-size: var(--pc-text-xs); color: var(--color-fg-subtle); white-space: nowrap; }
+.pk-caret { position: absolute; right: var(--pc-space-3); top: 9px; font-size: 9px; color: var(--color-fg-subtle); pointer-events: none; }
+
+.pk-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+  width: max-content; min-width: 280px; max-width: 380px;
+  background: var(--color-surface); border-radius: var(--pc-radius-sm);
+  box-shadow: var(--pc-shadow-soft); border: 1px solid var(--color-border);
+  padding: var(--pc-space-2); max-height: 340px; overflow-y: auto;
+}
+.pk-group { padding: var(--pc-space-2) var(--pc-space-3); font-size: var(--pc-text-xs); color: var(--color-fg-subtle); }
+.pk-item {
+  display: flex; align-items: center; gap: var(--pc-space-3);
+  padding: var(--pc-space-2) var(--pc-space-3); border-radius: var(--pc-radius-xs);
+  cursor: pointer; white-space: normal;
+}
+.pk-item:hover { background: var(--color-sunken); }
+.pk-item-main { flex: 1; min-width: 0; }
+.pk-item-name { font-size: var(--pc-text-sm); }
+.pk-item-name .muted { color: var(--color-fg-subtle); }
+.pk-item-meta { font-size: var(--pc-text-xs); color: var(--color-fg-subtle); margin-top: 1px; }
+.pk-item-use { font-size: var(--pc-text-xs); color: var(--color-fg-subtle); text-align: right; line-height: 1.5; flex: none; }
+.pk-item-off {
+  border: none; background: none; padding: 2px 6px; flex: none;
+  color: var(--color-link); font-size: var(--pc-text-xs); cursor: pointer; border-radius: var(--pc-radius-xs);
+}
+.pk-item-off:hover { background: var(--color-sunken); }
+.pk-item.disabled { opacity: 0.55; }
+.pk-item.disabled .pk-item-name { color: var(--color-fg-subtle); }
+.pk-new { border-top: 1px solid var(--color-border); margin-top: var(--pc-space-2); padding-top: var(--pc-space-3); }
+.pk-new .pk-item-name { color: var(--pc-teal-600); font-weight: 500; }
+.pk-empty { padding: var(--pc-space-4) var(--pc-space-3); font-size: var(--pc-text-xs); color: var(--color-fg-subtle); line-height: 1.7; text-align: center; }
+.pk-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--pc-space-2) var(--pc-space-3); font-size: var(--pc-text-xs); color: var(--color-fg-subtle);
+}
+.pk-foot button { border: none; background: none; padding: 0; color: var(--color-link); font-size: var(--pc-text-xs); cursor: pointer; }
 
 /* ── 徽标 ──────────────────────────────────────────────────────────── */
 
@@ -292,6 +367,32 @@ td.mono { font-family: var(--pc-font-mono); font-size: var(--pc-text-xs); }
 .form-check { display: flex; align-items: center; gap: var(--pc-space-3); font-size: var(--pc-text-sm); }
 .form-check input { width: auto; }
 
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--color-sunken); color: var(--color-fg-subtle); cursor: not-allowed;
+}
+
+/* 卡片头里的「计入本单」一类开关：勾选态给一个柔和底色，比纯 checkbox 更醒目 */
+.switch-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px var(--pc-space-4); border-radius: var(--pc-radius-full);
+  border: 1px solid var(--color-divider); background: var(--color-surface);
+  font-size: var(--pc-text-xs); color: var(--color-fg-muted); cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.switch-check:hover { background: var(--color-sunken); }
+.switch-check input { width: auto; accent-color: var(--pc-teal-500); cursor: pointer; }
+.switch-check.active { background: var(--pc-teal-50); border-color: var(--pc-teal-200); color: var(--pc-teal-700); }
+
+/* 创建订单页的金额汇总+提交条：常驻页面底部，避免行数一多就被顶到视口外找不到提交按钮 */
+.corp-summary-bar {
+  position: sticky; bottom: var(--pc-space-5); z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-6);
+  padding: var(--pc-space-5) var(--pc-space-6);
+  background: var(--color-surface); border: var(--pc-border-card); border-radius: var(--pc-radius-md);
+  box-shadow: var(--pc-shadow-soft);
+}
+.corp-summary-bar-fields { display: flex; gap: var(--pc-space-8); flex-wrap: wrap; }
+
 .notice {
   border-radius: var(--pc-radius-sm); padding: var(--pc-space-4) var(--pc-space-5);
   font-size: var(--pc-text-xs); line-height: 1.7;
@@ -299,6 +400,14 @@ td.mono { font-family: var(--pc-font-mono); font-size: var(--pc-text-xs); }
 .notice.warn { background: var(--pc-warn-bg); color: var(--pc-warn-fg); }
 .notice.danger { background: var(--pc-danger-bg); color: var(--pc-danger-fg); }
 .notice.info { background: var(--color-sunken); color: var(--pc-gray-600); }
+
+/* 新建商品弹窗：输入单价/额度时实时提示是否命中已有商品 */
+.warn-box, .ok-box {
+  border-radius: var(--pc-radius-sm); padding: var(--pc-space-4) var(--pc-space-5);
+  font-size: var(--pc-text-xs); line-height: 1.7;
+}
+.warn-box { background: var(--pc-warn-bg); color: var(--pc-warn-fg); }
+.ok-box { background: var(--pc-teal-50); color: var(--pc-teal-600); }
 
 /* ── 提示条 ────────────────────────────────────────────────────────── */
 

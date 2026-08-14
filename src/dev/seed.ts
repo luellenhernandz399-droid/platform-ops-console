@@ -6,6 +6,7 @@ import { addDays } from '../domain/time.ts';
 
 const admin: Actor = { id: 'u_super', role: 'super_admin', source: 'console' };
 const ops: Actor = { id: 'u_ops', role: 'operator', source: 'console' };
+const sales: Actor = { id: 'u_sales', role: 'sales', source: 'console' };
 
 const BASIC = '基础模型集';
 const ADVANCED = '高级模型集';
@@ -76,6 +77,56 @@ export function seed(app: PlatformConsole): void {
     ['claude-opus-5', 'team_core', 48_000],
     ['deepseek-v3', 'team_data', 9_400],
   ]);
+
+  // 演示订单：专业版 12 月 20% 赠送池化 + 旗舰版 12 月 30% 赠送池化 + 额度包
+  const proSeat = app.products.createOrReuse(sales, t1.id, {
+    category: 'seat',
+    unitPriceFen: 59_900,
+    creditAmount: 12_000,
+    note: '专业版',
+  }).product;
+  const flagshipSeat = app.products.createOrReuse(sales, t1.id, {
+    category: 'seat',
+    unitPriceFen: 99_900,
+    creditAmount: 25_000,
+    note: '旗舰版',
+  }).product;
+  const annualPackage = app.products.createOrReuse(sales, t1.id, {
+    category: 'package',
+    unitPriceFen: 500_000,
+    creditAmount: 200_000,
+    note: '年度算力包',
+  }).product;
+  app.corpOrders.createOrder(sales, t1.id, {
+    voucherFileName: 'poc-payment-voucher.pdf',
+    voucherMime: 'application/pdf',
+    voucherDataBase64: 'ZGVtby12b3VjaGVy',
+    seatLines: [
+      {
+        productId: proSeat.id,
+        seatCount: 20,
+        effectiveAt: addDays(now, -60).toISOString(),
+        termMonths: 12,
+        poolPercent: 20,
+      },
+      {
+        productId: flagshipSeat.id,
+        seatCount: 10,
+        effectiveAt: addDays(now, -60).toISOString(),
+        termMonths: 12,
+        poolPercent: 30,
+      },
+    ],
+    quotaPackages: [
+      {
+        productId: annualPackage.id,
+        count: 1,
+        effectiveAt: addDays(now, -60).toISOString(),
+        termMonths: 12,
+      },
+    ],
+    idempotencyKey: 'seed-corp-order-t1',
+  });
 
   // 2. 额度告警客户
   const t2 = app.createTenant(admin, {

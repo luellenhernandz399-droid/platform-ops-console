@@ -157,6 +157,20 @@ function tabBasic(root, d) {
         </div>
       </div>
 
+      ${t.status === 'active' ? `
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">对公权益下单</div>
+          <div class="card-note">正式客户可通过对公付款下发席位与额度权益，发放记录进入既有席位/额度体系</div>
+        </div>
+        <div class="card-body">
+          <div class="cell-actions">
+            <button class="btn btn-cta" data-act="corpOrder.create">创建订单</button>
+            <button class="btn" data-act="corpOrder.history">查看历史订单</button>
+          </div>
+        </div>
+      </div>` : ''}
+
       <div class="grid grid-2">
         <div class="card">
           <div class="card-head">
@@ -1152,6 +1166,10 @@ const ACTIONS = {
       toastError(error);
     }
   },
+
+  // 对公权益下单
+  'corpOrder.create': (d) => go(`tenants/${d.tenant.id}/corp-order/create`),
+  'corpOrder.history': (d) => go(`tenants/${d.tenant.id}/corp-order/history`),
 };
 
 function openQuotaGrant(d, book) {

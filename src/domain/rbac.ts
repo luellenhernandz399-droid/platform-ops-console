@@ -1,4 +1,4 @@
-// 平台侧角色与权限点。对应 Spec 5.1 / 5.2 的 42 个权限点与角色矩阵。
+// 平台侧角色与权限点。对应 Spec 5.1 / 5.2 的权限点与角色矩阵，另含对公权益下单的 3 个权限点。
 
 import type { Actor, PlatformRole } from './types.ts';
 import { fail } from './errors.ts';
@@ -46,6 +46,9 @@ export const PERMISSIONS = [
   'platform.audit.view',
   'platform.audit.export',
   'platform.account.manage',
+  'platform.corp_order.view',
+  'platform.corp_order.create',
+  'platform.corp_order.export',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -64,6 +67,7 @@ const SALES: Permission[] = [
   'platform.trial.open',
   'platform.trial.extend',
   'platform.trial.convert',
+  'platform.corp_order.create',
 ];
 
 /** 平台运营：日常下发资源，不能注销租户、不能回收/调账额度、不能强制释放席位 */

@@ -167,3 +167,17 @@ export function isExpired(expireAt: string | null, at: Date): boolean {
   if (expireAt === null) return false;
   return new Date(expireAt).getTime() <= at.getTime();
 }
+
+/**
+ * 自然月加法（对公权益下单 PRD 24/78）：结果保留原墙上时刻，
+ * 目标月无该日期时（29/30/31 日遇小月）顺延至目标月最后一天。
+ */
+export function addCalendarMonths(date: Date, months: number, timeZone: string): Date {
+  const p = partsInZone(date, timeZone);
+  const totalMonths = p.month - 1 + months;
+  const year = p.year + Math.floor(totalMonths / 12);
+  const month = ((totalMonths % 12) + 12) % 12 + 1;
+  const daysInTargetMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const day = Math.min(p.day, daysInTargetMonth);
+  return zonedToUtc(timeZone, year, month, day, p.hour, p.minute, p.second);
+}

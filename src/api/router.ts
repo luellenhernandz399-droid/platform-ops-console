@@ -144,6 +144,9 @@ export class Router {
     this.add('PATCH', '/platform/v1/tenants/:id', ({ actor, params, body }) =>
       app.tenants.edit(actor, params.id, body as never),
     );
+    this.add('POST', '/platform/v1/tenants/:id/activate', ({ actor, params, body }) =>
+      app.activateTenant(actor, params.id, body as never),
+    );
     this.add('POST', '/platform/v1/tenants/:id/suspend', ({ actor, params, body }) =>
       app.tenants.suspend(
         actor,
@@ -353,6 +356,52 @@ export class Router {
       app.tenants.addRemark(actor, params.id, String(body.text ?? '')),
     );
 
+    // 商品目录（PRD-席位与额度包商品化）
+    this.add('GET', '/platform/v1/tenants/:id/products', ({ actor, params, query }) => {
+      requirePermission(actor, 'platform.corp_order.view');
+      return app.products.list(params.id, query.category as never);
+    });
+    this.add('POST', '/platform/v1/tenants/:id/products', ({ actor, params, body }) =>
+      app.products.createOrReuse(actor, params.id, body as never),
+    );
+    this.add(
+      'PATCH',
+      '/platform/v1/tenants/:id/products/:productId',
+      ({ actor, params, body }) =>
+        app.products.setActive(actor, params.id, params.productId, Boolean(body.active)),
+    );
+
+    // 对公权益下单（PRD-对公支付权益下单）
+    this.add(
+      'POST',
+      '/platform/v1/tenants/:id/corp-orders',
+      ({ actor, params, body, idempotencyKey }) =>
+        app.corpOrders.createOrder(actor, params.id, {
+          ...(body as never),
+          idempotencyKey,
+        }),
+    );
+    this.add(
+      'GET',
+      '/platform/v1/tenants/:id/corp-orders',
+      ({ actor, params, query }) => {
+        requirePermission(actor, 'platform.corp_order.view');
+        return app.corpOrders.listOrders(params.id, { q: query.q as string | undefined });
+      },
+    );
+    this.add(
+      'GET',
+      '/platform/v1/tenants/:id/corp-grant-details',
+      ({ actor, params, query }) => {
+        requirePermission(actor, 'platform.corp_order.view');
+        return app.corpOrders.grantDetails(params.id, { q: query.q as string | undefined });
+      },
+    );
+    this.add('GET', '/platform/v1/corp-orders/:orderId', ({ actor, params }) => {
+      requirePermission(actor, 'platform.corp_order.view');
+      return app.corpOrders.orderDetail(params.orderId);
+    });
+
     // 租户管理员与额度策略配置
     this.add('PUT', '/platform/v1/tenants/:id/admin', ({ actor, params, body }) =>
       app.tenants.setAdmin(actor, params.id, body as never),
@@ -387,6 +436,7 @@ export class Router {
     this.add('POST', '/platform/v1/exports/:kind', ({ actor, params, body }) =>
       app.exports.run(actor, params.kind as never, {
         tenantId: body.tenantId as string | undefined,
+        orderId: body.orderId as string | undefined,
         filter: body.filter as never,
       }),
     );

@@ -37,6 +37,11 @@ export class IdGenerator {
     return this.dated('QG');
   }
 
+  /** CO-YYMM-NNN */
+  corpOrderNo(): string {
+    return this.dated('CO');
+  }
+
   private dated(prefix: string): string {
     const p = partsInZone(this.clock.now(), PLATFORM_TZ);
     const yymm = `${String(p.year % 100).padStart(2, '0')}${String(p.month).padStart(2, '0')}`;
